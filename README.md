@@ -2,6 +2,8 @@
 
 ## 簡介
 
+Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/DESIGN.md)。
+
 ## 環境需求
 
 ## 建置與執行
