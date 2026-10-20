@@ -2,7 +2,7 @@
 
 use super::map::NodeKind;
 use super::placement::PlacementScreen;
-use super::{Run, catch_view, map_view, ui};
+use super::{Reward, Run, catch_view, map_view, shop_view, ui};
 use crate::battle::Outcome;
 use crate::battle::view::BattleScreen;
 use crate::text;
@@ -11,7 +11,9 @@ use macroquad::prelude::*;
 enum Scene {
     Map,
     Placement(PlacementScreen),
-    Battle(BattleScreen),
+    /// 戰鬥畫面，打贏後記下得到的獎勵（只發一次）
+    Battle(BattleScreen, Option<Reward>),
+    Shop,
     /// 捕捉節點出現的精靈
     Catch(Vec<&'static str>),
     /// 尚未實作的節點
@@ -42,22 +44,36 @@ impl Game {
             Scene::Map => map_view::frame(&self.run).map(|node| self.enter(node)),
             Scene::Placement(screen) => screen.frame(&self.run).map(|allies| {
                 let enemies = std::mem::take(&mut screen.enemies);
-                Scene::Battle(BattleScreen::new(self.run.start_battle(allies, enemies)))
+                let battle = self.run.start_battle(allies, enemies);
+                Scene::Battle(BattleScreen::new(battle), None)
             }),
-            Scene::Battle(screen) => {
+            Scene::Battle(screen, reward) => {
                 screen.update(dt);
                 screen.draw();
+                let kind = self.run.current_kind();
+                if screen.battle.outcome == Some(Outcome::Win)
+                    && reward.is_none()
+                    && let Some(kind) = kind
+                {
+                    *reward = Some(self.run.win_reward(kind));
+                }
+                if let Some(r) = reward {
+                    let mut label = format!("獲得 {} 金幣", r.gold);
+                    if r.balls > 0 {
+                        label += &format!("、捕捉球 ×{}", r.balls);
+                    }
+                    text::centered(&label, vec2(400.0, 522.0), 24.0, GOLD);
+                }
                 screen.battle.outcome.and_then(|outcome| {
-                    text::centered("點擊繼續", vec2(400.0, 550.0), 24.0, LIGHTGRAY);
+                    text::centered("點擊繼續", vec2(400.0, 562.0), 24.0, LIGHTGRAY);
                     ui::clicked().then(|| match outcome {
                         Outcome::Lose => Scene::GameOver,
-                        Outcome::Win if self.run.current_kind() == Some(NodeKind::Boss) => {
-                            Scene::Cleared
-                        }
+                        Outcome::Win if kind == Some(NodeKind::Boss) => Scene::Cleared,
                         Outcome::Win => Scene::Map,
                     })
                 })
             }
+            Scene::Shop => shop_view::frame(&mut self.run).then_some(Scene::Map),
             Scene::Catch(offers) => catch_view::frame(&self.run, offers).map(|choice| {
                 if let catch_view::Choice::Catch(name) = choice {
                     self.run.catch(name);
@@ -104,7 +120,7 @@ impl Game {
                 Scene::Placement(PlacementScreen::new(&self.run, enemies))
             }
             NodeKind::Catch => Scene::Catch(self.run.catch_offers()),
-            NodeKind::Shop => Scene::Notice("商店"),
+            NodeKind::Shop => Scene::Shop,
             NodeKind::Rest => Scene::Notice("休息"),
             NodeKind::Event => Scene::Notice("事件"),
         }

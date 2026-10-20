@@ -7,6 +7,7 @@ mod game;
 pub mod map;
 mod map_view;
 mod placement;
+mod shop_view;
 mod ui;
 
 pub use game::Game;
@@ -27,6 +28,24 @@ const CATCH_POOL: [&str; 7] = ["A1", "A2", "A3", "A4", "E1", "E2", "E3"];
 pub const CATCH_OFFERS: usize = 3;
 /// 開局的捕捉球數量
 const STARTING_BALLS: u32 = 3;
+/// 商店的捕捉球價格（金幣）；暫定
+pub const BALL_PRICE: u32 = 15;
+
+/// 打贏戰鬥的獎勵
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reward {
+    pub gold: u32,
+    pub balls: u32,
+}
+
+/// 獎勵的金幣與掉落捕捉球的機率（%）；暫定
+fn reward_table(kind: NodeKind) -> (u32, usize) {
+    match kind {
+        NodeKind::Elite => (25, 100),
+        NodeKind::Boss => (50, 100),
+        _ => (10, 30),
+    }
+}
 
 /// 敵方上場隻數：野生從 1 隻開始隨階段增加；暫定
 fn enemy_count(kind: NodeKind, stage: usize) -> usize {
@@ -44,6 +63,7 @@ pub struct Run {
     pub party: Vec<Sprite>,
     /// 捕捉球，每次捕捉用掉一個；目前不影響捕捉率
     pub balls: u32,
+    pub gold: u32,
     /// 已解鎖的陣型
     pub formations: Vec<Formation>,
     pub map: Map,
@@ -58,6 +78,7 @@ impl Run {
         Self {
             party: vec![species::create(STARTER)],
             balls: STARTING_BALLS,
+            gold: 0,
             // 暫定：先開放全部範例陣型，之後改為開局只有基本陣型
             formations: formation::samples(),
             map: Map::generate(&mut rng),
@@ -124,6 +145,25 @@ impl Run {
         }
         self.balls -= 1;
         self.party.push(species::create(name));
+        true
+    }
+
+    /// 打贏戰鬥：得到金幣，有機會得到捕捉球
+    pub fn win_reward(&mut self, kind: NodeKind) -> Reward {
+        let (gold, ball_chance) = reward_table(kind);
+        let balls = u32::from(self.rng.below(100) < ball_chance);
+        self.gold += gold;
+        self.balls += balls;
+        Reward { gold, balls }
+    }
+
+    /// 在商店買一個捕捉球；金幣不夠時回傳 false
+    pub fn buy_ball(&mut self) -> bool {
+        if self.gold < BALL_PRICE {
+            return false;
+        }
+        self.gold -= BALL_PRICE;
+        self.balls += 1;
         true
     }
 
@@ -209,5 +249,32 @@ mod tests {
             assert!(run.catch("E1"));
         }
         assert_eq!(run.party.len(), 21);
+    }
+
+    #[test]
+    fn winning_gives_gold_and_sometimes_balls() {
+        let mut run = Run::new(3);
+        let mut dropped = 0;
+        for _ in 0..200 {
+            let r = run.win_reward(NodeKind::Wild);
+            assert_eq!(r.gold, 10);
+            assert!(r.balls <= 1);
+            dropped += r.balls;
+        }
+        assert!((30..90).contains(&dropped), "掉落 {dropped} 次，應約 30%");
+        assert_eq!(run.gold, 2000);
+        assert_eq!(run.balls, STARTING_BALLS + dropped);
+        assert_eq!(run.win_reward(NodeKind::Elite).balls, 1);
+    }
+
+    #[test]
+    fn buying_balls_costs_gold() {
+        let mut run = Run::new(3);
+        assert!(!run.buy_ball());
+        run.gold = BALL_PRICE * 2 - 1;
+        assert!(run.buy_ball());
+        assert!(!run.buy_ball());
+        assert_eq!(run.gold, BALL_PRICE - 1);
+        assert_eq!(run.balls, STARTING_BALLS + 1);
     }
 }

@@ -36,9 +36,7 @@ fn label(kind: NodeKind) -> (&'static str, Color) {
 /// 畫出地圖；玩家點了可以走的節點時回傳它
 pub fn frame(run: &Run) -> Option<usize> {
     text::draw("選擇路線", 40.0, 50.0, 36.0, WHITE);
-    let status = format!("捕捉球 {}　隊伍 {} 隻", run.balls, run.party.len());
-    let w = text::measure(&status, 24.0).width;
-    text::draw(&status, 760.0 - w, 50.0, 24.0, WHITE);
+    ui::draw_status(run);
 
     for (id, n) in run.map.nodes.iter().enumerate() {
         let a = node_pos(run, id);

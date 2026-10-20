@@ -38,15 +38,7 @@ pub fn frame(run: &Run, offers: &[&'static str]) -> Option<Choice> {
         LIGHTGRAY,
     );
     let no_balls = run.balls == 0;
-    let status = format!("捕捉球 {}　隊伍 {} 隻", run.balls, run.party.len());
-    let w = text::measure(&status, 24.0).width;
-    text::draw(
-        &status,
-        760.0 - w,
-        50.0,
-        24.0,
-        if no_balls { ORANGE } else { WHITE },
-    );
+    ui::draw_status(run);
 
     let mut choice = None;
     for (i, &name) in offers.iter().enumerate() {
