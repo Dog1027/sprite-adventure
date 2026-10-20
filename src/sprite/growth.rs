@@ -62,11 +62,22 @@ impl Sprite {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sprite::species;
+
+    fn sprite(hp: u32, attack: u32, defense: u32) -> Sprite {
+        let stats = Stats {
+            hp,
+            attack,
+            defense,
+            interval: 2,
+            start_turn: 3,
+            skill_every: 4,
+        };
+        Sprite::new("s", stats)
+    }
 
     #[test]
     fn enhance_adds_percent_of_current_value() {
-        let mut s = species::create("A1"); // HP 120、攻擊 30、防禦 20
+        let mut s = sprite(120, 30, 20);
         assert_eq!(s.enhance(Boost::Hp), 12);
         assert_eq!(s.stats.hp, 132);
         assert_eq!(s.enhance(Boost::Attack), 3);
@@ -75,23 +86,20 @@ mod tests {
 
     #[test]
     fn enhance_rounds_and_gives_at_least_one() {
-        let mut s = species::create("A4"); // 防禦 0
+        let mut s = sprite(100, 10, 0);
         assert_eq!(s.enhance(Boost::Defense), 1);
         assert_eq!(s.stats.defense, 1);
-        let s = species::create("A2"); // 防禦 5 → 0.5 四捨五入為 1
-        assert_eq!(s.enhance_amount(Boost::Defense), 1);
+        // 防禦 5 → 0.5 四捨五入為 1
+        assert_eq!(sprite(100, 10, 5).enhance_amount(Boost::Defense), 1);
     }
 
     #[test]
     fn enhance_keeps_rhythm() {
-        let mut s = species::create("A1");
-        let before = s.stats;
+        let mut s = sprite(100, 10, 10);
         for b in Boost::ALL {
             s.enhance(b);
         }
-        assert_eq!(
-            (s.stats.interval, s.stats.start_turn, s.stats.skill_every),
-            (before.interval, before.start_turn, before.skill_every)
-        );
+        let st = s.stats;
+        assert_eq!((st.interval, st.start_turn, st.skill_every), (2, 3, 4));
     }
 }

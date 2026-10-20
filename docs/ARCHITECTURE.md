@@ -13,6 +13,7 @@ src/
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
 │   ├── skill.rs       技能資料：Skill、Range（範圍）
 │   ├── growth.rs      休息強化：Boost、Sprite::enhance
+│   ├── generate.rs    生成：捕捉節點與敵方出現的精靈（依稀有度、階段）
 │   └── species.rs     讀取精靈種類資料（data/species.toml）
 ├── battle/            戰鬥
 │   ├── mod.rs         棋盤、Unit、Battle（回合進行與結算）、Event、Outcome
@@ -68,8 +69,8 @@ main ──→ run ──→ battle ──→ sprite
 | `Stats`、`Sprite` | `sprite/mod.rs` | 精靈 → 戰鬥、流程 |
 | `Skill`、`Range` | `sprite/skill.rs` | 精靈 → 戰鬥（執行技能效果） |
 | `Boost`、`Sprite::enhance` | `sprite/growth.rs` | 流程的休息畫面 |
-| `species::catch_rate` | `sprite/species.rs` | 流程的捕捉節點 |
-| `species::create` | `sprite/species.rs` | 流程用來建立精靈 |
+| `species::create`、`starter`、`catch_rate` | `sprite/species.rs` | 流程：依代號建立精靈、開局精靈、捕捉率 |
+| `generate::catch_offers`、`enemy` | `sprite/generate.rs` | 流程：捕捉節點與敵方的精靈 |
 | `Unit::new(&Sprite, Side, Pos)` | `battle/mod.rs` | 把精靈放到某一格（不含陣型加成） |
 | `Formation`、`Formation::place`、`formation::samples` | `battle/formation.rs` | 流程依陣型擺位，取得含陣型加成的 `Unit` |
 | `preview`、`view::draw_preview` 等畫法 | `battle/targeting.rs`、`battle/view.rs` | 擺位畫面顯示目標預覽 |

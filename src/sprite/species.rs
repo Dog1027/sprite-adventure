@@ -11,10 +11,23 @@ use super::{Skill, Sprite, Stats};
 
 const DATA: &str = include_str!("../../data/species.toml");
 
+/// 稀有度，影響在捕捉節點與敵方出現的機率（見 `generate`）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Rarity {
+    Common,
+    Uncommon,
+    Rare,
+}
+
 /// 資料檔中一種精靈的內容
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Entry {
+    name: String,
+    rarity: Rarity,
+    #[serde(default)]
+    starter: bool,
     hp: u32,
     attack: u32,
     defense: u32,
@@ -25,19 +38,21 @@ struct Entry {
     catch_rate: u32,
 }
 
-/// 一種精靈：建立用的範本與捕捉率
+/// 一種精靈：建立用的範本、稀有度與捕捉率
 #[derive(Debug)]
-struct Species {
-    sprite: Sprite,
-    catch_rate: u32,
+pub(super) struct Species {
+    pub sprite: Sprite,
+    pub rarity: Rarity,
+    pub starter: bool,
+    pub catch_rate: u32,
 }
 
-/// 解析並檢查資料檔，回傳「名稱 → 精靈種類」
+/// 解析並檢查資料檔，回傳「代號 → 精靈種類」
 fn parse(text: &str) -> Result<BTreeMap<String, Species>, String> {
     let table: BTreeMap<String, Entry> =
         toml::from_str(text).map_err(|e| format!("精靈資料格式錯誤：{e}"))?;
-    let mut sprites = BTreeMap::new();
-    for (name, e) in table {
+    let mut all = BTreeMap::new();
+    for (id, e) in table {
         for (field, value) in [
             ("hp", e.hp),
             ("interval", e.interval),
@@ -46,11 +61,14 @@ fn parse(text: &str) -> Result<BTreeMap<String, Species>, String> {
             ("skill.power", e.skill.power),
         ] {
             if value < 1 {
-                return Err(format!("精靈 {name} 的 {field} 至少要是 1"));
+                return Err(format!("精靈 {id} 的 {field} 至少要是 1"));
             }
         }
         if e.catch_rate > 100 {
-            return Err(format!("精靈 {name} 的 catch_rate 不能超過 100"));
+            return Err(format!("精靈 {id} 的 catch_rate 不能超過 100"));
+        }
+        if e.name.is_empty() {
+            return Err(format!("精靈 {id} 沒有 name"));
         }
         let stats = Stats {
             hp: e.hp,
@@ -60,14 +78,19 @@ fn parse(text: &str) -> Result<BTreeMap<String, Species>, String> {
             start_turn: e.start_turn,
             skill_every: e.skill_every,
         };
-        let sprite = Sprite::new(&name, stats).with_skill(e.skill);
         let species = Species {
-            sprite,
+            sprite: Sprite::new(&e.name, stats).with_skill(e.skill),
+            rarity: e.rarity,
+            starter: e.starter,
             catch_rate: e.catch_rate,
         };
-        sprites.insert(name, species);
+        all.insert(id, species);
     }
-    Ok(sprites)
+    let starters = all.values().filter(|s| s.starter).count();
+    if starters != 1 {
+        return Err(format!("starter = true 要剛好一種，目前有 {starters} 種"));
+    }
+    Ok(all)
 }
 
 fn table() -> &'static BTreeMap<String, Species> {
@@ -75,21 +98,33 @@ fn table() -> &'static BTreeMap<String, Species> {
     TABLE.get_or_init(|| parse(DATA).unwrap_or_else(|e| panic!("data/species.toml：{e}")))
 }
 
-fn get(name: &str) -> &'static Species {
+fn get(id: &str) -> &'static Species {
     table()
-        .get(name)
-        .unwrap_or_else(|| panic!("未知的精靈：{name}"))
+        .get(id)
+        .unwrap_or_else(|| panic!("未知的精靈：{id}"))
 }
 
-/// 依名稱建立精靈
-pub fn create(name: &str) -> Sprite {
-    get(name).sprite.clone()
+/// 所有精靈種類（依代號排序，順序固定，方便重現亂數結果）
+pub(super) fn all() -> impl Iterator<Item = (&'static str, &'static Species)> {
+    table().iter().map(|(id, s)| (id.as_str(), s))
+}
+
+/// 依代號建立精靈
+pub fn create(id: &str) -> Sprite {
+    get(id).sprite.clone()
+}
+
+/// 開局的精靈（資料檔中 `starter = true` 的那一種）
+pub fn starter() -> Sprite {
+    all()
+        .find(|(_, s)| s.starter)
+        .map(|(_, s)| s.sprite.clone())
+        .expect("資料檔檢查過一定有開局精靈")
 }
 
 /// 在捕捉節點的基本捕捉機率（%），會直接顯示給玩家。道具的影響之後再加
-#[allow(dead_code)] // 捕捉節點尚未實作
-pub fn catch_rate(name: &str) -> u32 {
-    get(name).catch_rate
+pub fn catch_rate(id: &str) -> u32 {
+    get(id).catch_rate
 }
 
 #[cfg(test)]
@@ -97,35 +132,50 @@ mod tests {
     use super::*;
     use crate::sprite::skill::Range;
 
-    const VALID: &str = "[X]\nhp = 1\nattack = 1\ndefense = 0\ninterval = 1\nstart_turn = 1\nskill_every = 1\n\
+    const VALID: &str = "[x]\nname = \"甲\"\nrarity = \"common\"\nstarter = true\n\
+                         hp = 1\nattack = 1\ndefense = 0\ninterval = 1\nstart_turn = 1\nskill_every = 1\n\
                          skill = { name = \"s\", range = \"row\", power = 80 }\ncatch_rate = 40\n";
 
     #[test]
     fn data_file_is_valid() {
         let t = parse(DATA).unwrap();
-        assert!(!t.is_empty());
+        assert!(t.len() >= 10);
     }
 
     #[test]
-    fn create_reads_data_file() {
-        let s = create("A1");
-        assert_eq!(s.name, "A1");
-        assert_eq!(s.stats.hp, 120);
-        assert_eq!(s.stats.skill_every, 3);
-        assert_eq!(s.skill.range, Range::Row);
+    fn create_uses_display_name() {
+        let s = create("ember_fox");
+        assert_eq!(s.name, "焰狐");
+        assert_eq!(s.stats.hp, 100);
+        assert_eq!(s.skill.range, Range::Single);
     }
 
     #[test]
-    fn parses_skill() {
+    fn display_names_fit_a_cell() {
+        for (id, s) in all() {
+            assert!(s.sprite.name.chars().count() <= 2, "{id} 的名稱太長");
+        }
+    }
+
+    #[test]
+    fn has_one_starter() {
+        assert_eq!(starter().name, "焰狐");
+        let two = format!("{VALID}{}", VALID.replace("[x]", "[y]"));
+        assert!(parse(&two).unwrap_err().contains("starter"));
+        let none = VALID.replace("starter = true\n", "");
+        assert!(parse(&none).unwrap_err().contains("starter"));
+    }
+
+    #[test]
+    fn parses_skill_and_rarity() {
         let t = parse(VALID).unwrap();
-        let skill = &t["X"].sprite.skill;
-        assert_eq!((skill.range, skill.power), (Range::Row, 80));
-    }
-
-    #[test]
-    fn reads_catch_rate() {
-        assert_eq!(parse(VALID).unwrap()["X"].catch_rate, 40);
-        assert!(catch_rate("E1") <= 100);
+        let x = &t["x"];
+        assert_eq!(
+            (x.sprite.skill.range, x.sprite.skill.power),
+            (Range::Row, 80)
+        );
+        assert_eq!(x.rarity, Rarity::Common);
+        assert_eq!(x.catch_rate, 40);
     }
 
     #[test]
@@ -144,11 +194,12 @@ mod tests {
     fn rejects_typos() {
         assert!(parse(&VALID.replace("attack", "atack")).is_err());
         assert!(parse(&VALID.replace("\"row\"", "\"rows\"")).is_err());
+        assert!(parse(&VALID.replace("\"common\"", "\"normal\"")).is_err());
     }
 
     #[test]
-    fn rejects_missing_skill() {
-        let text = VALID.lines().take(7).collect::<Vec<_>>().join("\n");
-        assert!(parse(&text).is_err());
+    fn rejects_missing_fields() {
+        assert!(parse(&VALID.replace("catch_rate = 40\n", "")).is_err());
+        assert!(parse(&VALID.replace("name = \"甲\"\n", "")).is_err());
     }
 }

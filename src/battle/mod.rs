@@ -434,7 +434,7 @@ pub(crate) mod tests {
 
     #[test]
     fn units_carry_skill_from_data_file() {
-        let s = crate::sprite::species::create("A1");
+        let s = crate::sprite::species::starter();
         let u = Unit::new(&s, Side::Ally, Pos { row: 0, depth: 0 });
         assert_eq!(u.skill, s.skill);
     }

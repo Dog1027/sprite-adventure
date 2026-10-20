@@ -15,15 +15,9 @@ pub use game::Game;
 use crate::battle::formation::{self, Formation};
 use crate::battle::{Battle, Side, Unit};
 use crate::rng::Rng;
-use crate::sprite::{Sprite, species};
+use crate::sprite::{Sprite, generate, species};
 use map::{Map, NodeKind};
 
-/// 開局只有一隻精靈，之後在捕捉節點增加
-const STARTER: &str = "A1";
-/// 敵方會出現的精靈；暫定
-const ENEMY_POOL: [&str; 3] = ["E1", "E2", "E3"];
-/// 捕捉節點會出現的精靈；暫定
-const CATCH_POOL: [&str; 7] = ["A1", "A2", "A3", "A4", "E1", "E2", "E3"];
 /// 捕捉節點一次出現幾隻（選一隻抓）；暫定
 pub const CATCH_OFFERS: usize = 3;
 /// 開局的捕捉球數量
@@ -76,7 +70,8 @@ impl Run {
     pub fn new(seed: u64) -> Self {
         let mut rng = Rng::new(seed);
         Self {
-            party: vec![species::create(STARTER)],
+            // 開局只有一隻精靈，之後在捕捉節點增加
+            party: vec![species::starter()],
             balls: STARTING_BALLS,
             gold: 0,
             // 暫定：先開放全部範例陣型，之後改為開局只有基本陣型
@@ -124,7 +119,7 @@ impl Run {
         }
         let sprites: Vec<Option<Sprite>> = chosen
             .iter()
-            .map(|&c| c.then(|| species::create(ENEMY_POOL[self.rng.below(ENEMY_POOL.len())])))
+            .map(|&c| c.then(|| generate::enemy(&mut self.rng, stage)))
             .collect();
         let placement: Vec<Option<&Sprite>> = sprites.iter().map(Option::as_ref).collect();
         f.place(&placement, Side::Enemy).expect("敵方至少 1 隻")
@@ -132,10 +127,8 @@ impl Run {
 
     /// 捕捉節點出現的精靈（種類名稱，不重複）
     pub fn catch_offers(&mut self) -> Vec<&'static str> {
-        let mut pool = CATCH_POOL.to_vec();
-        (0..CATCH_OFFERS.min(pool.len()))
-            .map(|_| pool.remove(self.rng.below(pool.len())))
-            .collect()
+        let stage = self.current().map_or(0, |id| self.map.nodes[id].stage);
+        generate::catch_offers(&mut self.rng, stage, CATCH_OFFERS)
     }
 
     /// 捕捉：用掉一個捕捉球，目前必定成功（見 DESIGN.md「捕捉」）。沒有球時回傳 false。
@@ -246,7 +239,7 @@ mod tests {
         let mut run = Run::new(2);
         run.balls = 20;
         for _ in 0..20 {
-            assert!(run.catch("E1"));
+            assert!(run.catch("ember_fox"));
         }
         assert_eq!(run.party.len(), 21);
     }

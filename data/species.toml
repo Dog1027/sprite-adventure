@@ -1,5 +1,9 @@
-# 精靈種類資料：每一段是一種精靈，段名就是 species::create 用的名稱。
-# 名稱與數值僅為示意。規則見 docs/DESIGN.md「回合與攻擊節奏」「能力值」。
+# 精靈種類資料：每一段是一種精靈，段名是代號（species::create 用），name 是顯示的名稱。
+# 名稱與數值為第一版，平衡之後再調。規則見 docs/DESIGN.md「精靈」「回合與攻擊節奏」「能力值」「技能」。
+#
+# name        顯示名稱（戰鬥畫面一格約放得下 2 個字）
+# rarity      稀有度：common 普通／uncommon 少見／rare 稀有，影響出現機率（見 src/sprite/generate.rs）
+# starter     true 表示開局的精靈，全部只能有一種（可省略）
 #
 # hp          HP，歸零就退場（至少 1）
 # attack      攻擊
@@ -8,83 +12,172 @@
 # start_turn  第幾回合開始攻擊，從 1 起算（至少 1）
 # skill_every 每幾次攻擊有一次改用技能（至少 1）
 #
-# skill       每隻精靈一種技能（見 docs/DESIGN.md「技能」）
+# skill       每隻精靈一種技能
 #   name      技能名稱
 #   range     範圍：single 單體／row 貫穿整列／front 前排／snipe 狙擊後方／all 全體／heal 治療
 #   power     倍率（%）：傷害技能為攻擊的百分比；治療量 = 攻擊 × 倍率
 #
-# catch_rate  在捕捉節點的基本捕捉機率（0～100%，見 docs/DESIGN.md「捕捉」）
+# catch_rate  在捕捉節點的基本捕捉機率（0～100%）
 
-# ── 我方 ──
+# ── 普通 ──
 
-[A1]
-hp = 120
+# 開局精靈：攻守平均，技能單體重擊
+[ember_fox]
+name = "焰狐"
+rarity = "common"
+starter = true
+hp = 100
 attack = 30
-defense = 20
+defense = 15
 interval = 1
 start_turn = 1
 skill_every = 3
-skill = { name = "橫掃", range = "row", power = 80 }
-catch_rate = 40
+skill = { name = "狐火", range = "single", power = 180 }
+catch_rate = 55
 
-[A2]
+# 坦克：血厚防高，技能打敵方最前排
+[pebble_turtle]
+name = "石龜"
+rarity = "common"
+hp = 160
+attack = 15
+defense = 45
+interval = 2
+start_turn = 1
+skill_every = 3
+skill = { name = "震地", range = "front", power = 70 }
+catch_rate = 55
+
+# 治療：晚一回合出手，技能補血
+[dew_sprout]
+name = "露芽"
+rarity = "common"
+hp = 90
+attack = 20
+defense = 15
+interval = 1
+start_turn = 2
+skill_every = 3
+skill = { name = "晨露", range = "heal", power = 150 }
+catch_rate = 55
+
+# 快攻：每回合出手但攻擊低，技能偷襲後排
+[gale_sparrow]
+name = "風雀"
+rarity = "common"
+hp = 70
+attack = 18
+defense = 5
+interval = 1
+start_turn = 1
+skill_every = 4
+skill = { name = "風切", range = "snipe", power = 110 }
+catch_rate = 60
+
+# 穩定輸出：中規中矩
+[mud_newt]
+name = "泥蜥"
+rarity = "common"
+hp = 110
+attack = 25
+defense = 20
+interval = 1
+start_turn = 2
+skill_every = 3
+skill = { name = "泥彈", range = "single", power = 160 }
+catch_rate = 55
+
+# 前線：出手慢，但常放貫穿整列的技能
+[thorn_beetle]
+name = "棘蟲"
+rarity = "common"
+hp = 120
+attack = 28
+defense = 30
+interval = 2
+start_turn = 1
+skill_every = 2
+skill = { name = "角衝", range = "row", power = 100 }
+catch_rate = 50
+
+# ── 少見 ──
+
+# 範圍：脆，技能打全體
+[frost_moth]
+name = "霜蛾"
+rarity = "uncommon"
 hp = 80
-attack = 50
+attack = 32
+defense = 10
+interval = 2
+start_turn = 2
+skill_every = 2
+skill = { name = "冰粉", range = "all", power = 45 }
+catch_rate = 35
+
+# 刺客：攻擊高，技能狙擊後排
+[shadow_cat]
+name = "影貓"
+rarity = "uncommon"
+hp = 75
+attack = 45
 defense = 5
 interval = 2
 start_turn = 1
 skill_every = 2
-skill = { name = "穿心", range = "snipe", power = 150 }
+skill = { name = "暗爪", range = "snipe", power = 160 }
 catch_rate = 35
 
-[A3]
-hp = 150
-attack = 20
-defense = 40
-interval = 1
-start_turn = 2
-skill_every = 4
-skill = { name = "守護之光", range = "heal", power = 120 }
-catch_rate = 30
+# 治療：補得比露芽多
+[bell_jelly]
+name = "鈴母"
+rarity = "uncommon"
+hp = 100
+attack = 28
+defense = 20
+interval = 2
+start_turn = 1
+skill_every = 2
+skill = { name = "潮鳴", range = "heal", power = 180 }
+catch_rate = 35
 
-[A4]
-hp = 60
-attack = 70
-defense = 0
+# 重戰士：血厚攻高，起步慢
+[iron_boar]
+name = "鐵豬"
+rarity = "uncommon"
+hp = 150
+attack = 40
+defense = 25
+interval = 2
+start_turn = 2
+skill_every = 3
+skill = { name = "猛衝", range = "front", power = 110 }
+catch_rate = 35
+
+# ── 稀有 ──
+
+# 王牌：高攻擊，技能打全體
+[thunder_lynx]
+name = "雷猁"
+rarity = "rare"
+hp = 110
+attack = 55
+defense = 15
+interval = 2
+start_turn = 1
+skill_every = 3
+skill = { name = "落雷", range = "all", power = 70 }
+catch_rate = 20
+
+# 巨獸：非常耐打，出手慢但技能頻繁
+[moon_whale]
+name = "月鯨"
+rarity = "rare"
+hp = 220
+attack = 35
+defense = 40
 interval = 3
 start_turn = 3
 skill_every = 2
-skill = { name = "暴風", range = "all", power = 50 }
-catch_rate = 25
-
-# ── 敵方 ──
-
-[E1]
-hp = 100
-attack = 35
-defense = 10
-interval = 1
-start_turn = 1
-skill_every = 3
-skill = { name = "重擊", range = "single", power = 200 }
-catch_rate = 50
-
-[E2]
-hp = 140
-attack = 25
-defense = 30
-interval = 1
-start_turn = 1
-skill_every = 3
-skill = { name = "衝撞", range = "front", power = 90 }
-catch_rate = 45
-
-[E3]
-hp = 70
-attack = 60
-defense = 0
-interval = 2
-start_turn = 2
-skill_every = 2
-skill = { name = "貫穿", range = "row", power = 80 }
-catch_rate = 40
+skill = { name = "月潮", range = "row", power = 140 }
+catch_rate = 15
