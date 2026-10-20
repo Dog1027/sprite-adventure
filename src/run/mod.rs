@@ -12,6 +12,8 @@ mod shop_view;
 mod ui;
 
 pub use game::Game;
+#[cfg(not(target_arch = "wasm32"))]
+pub use game::shots;
 
 use crate::battle::formation::{self, Formation};
 use crate::battle::{Battle, Side, Unit};

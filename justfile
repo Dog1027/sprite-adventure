@@ -37,7 +37,11 @@ web:
 serve:
     ./build-web.sh serve
 
+# 把每個畫面存成 PNG 到 shots/，檢查排版用（原生版）
+shots:
+    SPRITE_SHOTS=shots cargo run
+
 # 刪除建置產物
 clean:
     cargo clean
-    rm -rf dist
+    rm -rf dist shots

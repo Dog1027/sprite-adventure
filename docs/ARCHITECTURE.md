@@ -7,6 +7,8 @@
 ```
 src/
 ├── main.rs            入口：建立視窗，每幀呼叫 run::Game
+├── screen.rs          直式虛擬畫面（450×800），縮放到視窗或手機螢幕，換算觸控座標
+├── gfx.rs             共用圖形：圓角矩形、漸層、陰影
 ├── rng.rs             共用亂數（同種子可重現）
 ├── text.rs            共用文字繪製（中文字型），所有畫面都用它畫字
 ├── palette.rs         配色表：所有畫面的顏色都從這裡取，依用途命名
@@ -25,13 +27,14 @@ src/
 └── run/               流程
     ├── mod.rs         Run：一局的狀態（隊伍、陣型、地圖位置）、產生敵方隊伍
     ├── map.rs         分支地圖產生
-    ├── game.rs        Game：畫面切換（地圖 → 擺位 → 戰鬥 → 結果）
+    ├── game.rs        Game：畫面切換（地圖 → 擺位 → 戰鬥 → 結果）、換畫面的淡入
+    ├── game/shots.rs  開發用截圖：`just shots` 把每個畫面存成 PNG
     ├── map_view.rs    地圖畫面
     ├── placement.rs   陣型選擇與擺位畫面
     ├── catch_view.rs  捕捉畫面
     ├── shop_view.rs   商店畫面
     ├── rest_view.rs   休息畫面（強化精靈）
-    └── ui.rs          按鈕等簡單介面元件
+    └── ui.rs          介面元件：按鈕、卡片、標題列、圖示、翻頁
 
 assets/
 └── fonts/             Cubic_11.ttf（中文點陣字型，執行時載入）與授權 OFL.txt
@@ -90,6 +93,9 @@ main ──→ run ──→ battle ──→ sprite
 - 每個模組的內部可以自由修改；改到上表的介面要先討論
 - 規則有變動時先更新 DESIGN.md
 - 每個模組的邏輯寫單元測試，提交前執行 `cargo test` 和 `cargo clippy`
+- 主要平台是手機，畫面是直式：所有畫面都用 `screen::W`×`screen::H`（450×800）的座標排版，不要用 `screen_width()`；點擊位置用 `ui::mouse()`（已換算成虛擬座標）
+- 手機沒有滑鼠移上去（hover）的效果，不要把重要資訊只放在 hover；按鈕高度至少 44
+- 改了畫面後執行 `just shots`，看 `shots/` 裡的截圖確認排版
 - 畫面的顏色一律用 `palette` 裡的名稱，不要直接寫 `WHITE` 或 `Color::new(...)`；需要新用途時在 `palette.rs` 加一個
 - 畫面程式和邏輯分開：邏輯（例如 `battle/mod.rs`、`targeting.rs`、`run/map.rs`）不呼叫 macroquad，才能寫單元測試
 

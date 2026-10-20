@@ -127,6 +127,11 @@ pub fn catch_rate(id: &str) -> u32 {
     get(id).catch_rate
 }
 
+/// 稀有度（捕捉畫面顯示用）
+pub fn rarity(id: &str) -> Rarity {
+    get(id).rarity
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

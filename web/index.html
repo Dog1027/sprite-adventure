@@ -3,10 +3,24 @@
 <head>
     <meta charset="utf-8">
     <title>Sprite</title>
+    <!-- 手機：不縮放、填滿螢幕（含瀏海區域），加到主畫面時以全螢幕開啟 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#08080d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         html, body, canvas {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; position: absolute; background: black; z-index: 0;
+            overflow: hidden; position: absolute; background: #08080d; z-index: 0;
+        }
+        /* 觸控時不要捲動、縮放、選取文字或出現點擊高亮 */
+        canvas {
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
     </style>
 </head>

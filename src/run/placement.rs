@@ -1,22 +1,26 @@
 //! 陣型選擇與擺位畫面：看得到敵方陣容，選陣型、把精靈放進開放的格子，預覽線顯示第一個攻擊目標。
 
 use super::Run;
-use super::ui;
+use super::ui::{self, BOTTOM_BUTTON, MARGIN, Style};
 use crate::battle::formation::{MIN_UNITS, bonus_label};
-use crate::battle::view::{self, CELL};
+use crate::battle::view::{self, BOARD_BOTTOM};
 use crate::battle::{Side, Unit};
+use crate::gfx;
 use crate::palette;
+use crate::screen::W;
 use crate::sprite::Sprite;
 use crate::text;
 use macroquad::prelude::*;
 
-const CARD_TOP: f32 = 440.0;
+const TABS_TOP: f32 = 72.0;
+const CARD_TOP: f32 = BOARD_BOTTOM + 10.0;
 const CARD_W: f32 = 80.0;
-const CARD_H: f32 = 60.0;
+const CARD_H: f32 = 52.0;
 const CARD_GAP: f32 = 8.0;
+const ARROW_W: f32 = 32.0;
 /// 隊伍沒有上限，一頁顯示幾隻，其餘用左右箭頭翻頁
-const CARDS_PER_PAGE: usize = 5;
-const CARDS_LEFT: f32 = 76.0;
+const CARDS_PER_PAGE: usize = 4;
+const CARDS_LEFT: f32 = (W - CARDS_PER_PAGE as f32 * (CARD_W + CARD_GAP) + CARD_GAP) / 2.0;
 
 /// 這一頁第 n 張卡片的位置
 fn card_rect(n: usize) -> Rect {
@@ -66,57 +70,49 @@ impl PlacementScreen {
             .collect()
     }
 
+    /// 選中隊伍中第 i 隻（開發用截圖也會用到）
+    pub(super) fn select(&mut self, i: usize) {
+        self.selected = Some(i);
+    }
+
     /// 畫出畫面並處理點擊；按下開戰時回傳擺好的我方精靈
     pub fn frame(&mut self, run: &Run) -> Option<Vec<Unit>> {
-        text::draw("選擇陣型並擺放精靈", 40.0, 50.0, 36.0, palette::TEXT);
-
-        for (i, f) in run.formations.iter().enumerate() {
-            let rect = Rect::new(40.0 + i as f32 * 150.0, 70.0, 140.0, 40.0);
-            let label = format!("{} {}格", f.name, f.slots.len());
-            if ui::button(rect, &label, true, i == self.formation) && i != self.formation {
-                self.formation = i;
-                self.auto_fill(run);
-            }
-        }
+        ui::header("布陣", Some(run));
+        self.draw_tabs(run);
 
         let formation = &run.formations[self.formation];
         view::draw_boards();
-        for &pos in &formation.slots {
-            let o = view::cell_origin(Side::Ally, pos);
-            draw_rectangle(
-                o.x + 2.0,
-                o.y + 2.0,
-                CELL - 4.0,
-                CELL - 4.0,
-                palette::OPEN_SLOT,
-            );
+        // 開放的格子與加成
+        for (i, &pos) in formation.slots.iter().enumerate() {
+            let r = view::inset(view::cell_rect(Side::Ally, pos), 3.0);
+            gfx::rounded_rect(r, 8.0, palette::OPEN_SLOT);
+            gfx::rounded_rect_lines(r, 8.0, 1.5, palette::OPEN_SLOT_BORDER);
+            let label = bonus_label(&formation.slot_percents(i));
+            if self.slots[i].is_none() && !label.is_empty() {
+                text::centered(&label, r.center(), 18.0, palette::HIGHLIGHT);
+            }
         }
 
-        // 預覽用的我方精靈（不含陣型加成，只用來畫位置與目標）
-        let mut units: Vec<Unit> = formation
-            .slots
-            .iter()
-            .zip(&self.slots)
-            .filter_map(|(&pos, s)| s.map(|i| Unit::new(&run.party[i], Side::Ally, pos)))
-            .collect();
+        // 我方精靈（含陣型加成，預覽才準）
+        let placement = self.placement(run);
+        let mut units = formation.place(&placement, Side::Ally).unwrap_or_default();
         units.extend(self.enemies.iter().cloned());
+        // 我方的格子有加成時，左下角顯示加成（取代血量數字）
         for u in &units {
-            view::draw_unit(u);
+            let bonus = formation
+                .slots
+                .iter()
+                .position(|&p| p == u.pos && u.side == Side::Ally)
+                .map(|i| bonus_label(&formation.slot_percents(i)))
+                .filter(|l| !l.is_empty());
+            view::draw_unit(u, bonus.as_deref());
         }
         view::draw_preview(&units);
-
-        // 每一格的陣型加成，畫在格子最下方
-        for (i, &pos) in formation.slots.iter().enumerate() {
-            let label = bonus_label(&formation.slot_percents(i));
-            if !label.is_empty() {
-                let o = view::cell_origin(Side::Ally, pos);
-                text::centered(
-                    &label,
-                    vec2(o.x + CELL / 2.0, o.y + CELL - 6.0),
-                    12.0,
-                    palette::HIGHLIGHT,
-                );
-            }
+        if let Some(i) = self.selected
+            && let Some(slot) = self.slots.iter().position(|&s| s == Some(i))
+        {
+            let r = view::inset(view::cell_rect(Side::Ally, formation.slots[slot]), 1.0);
+            gfx::rounded_rect_lines(r, 10.0, 3.0, palette::BUTTON_ACTIVE);
         }
 
         // 點格子：有選中的精靈就放進去，否則拿起格子裡的精靈
@@ -141,104 +137,99 @@ impl PlacementScreen {
 
         let placed = self.slots.iter().flatten().count();
         let ready = placed >= MIN_UNITS;
-        let hint = if ready {
-            format!("已擺 {placed} 隻")
+        let label = if ready {
+            format!("開戰（{placed} 隻上場）")
         } else {
             format!("至少擺 {MIN_UNITS} 隻")
         };
-        text::draw(
-            &hint,
-            600.0,
-            515.0,
-            24.0,
-            if ready {
-                palette::TEXT_DIM
-            } else {
-                palette::WARNING
-            },
-        );
-        if ui::button(Rect::new(600.0, 525.0, 160.0, 50.0), "開戰！", ready, false) {
-            return formation.place(&self.placement(run), Side::Ally).ok();
+        if ui::button(BOTTOM_BUTTON, &label, Style::Primary, ready) {
+            return formation.place(&placement, Side::Ally).ok();
         }
         None
     }
 
+    /// 上方的陣型分頁
+    fn draw_tabs(&mut self, run: &Run) {
+        let n = run.formations.len() as f32;
+        let gap = 8.0;
+        let w = (W - 2.0 * MARGIN - gap * (n - 1.0)) / n;
+        for (i, f) in run.formations.iter().enumerate() {
+            let rect = Rect::new(MARGIN + i as f32 * (w + gap), TABS_TOP, w, 44.0);
+            let label = format!("{} {}格", f.name, f.slots.len());
+            let style = if i == self.formation {
+                Style::Selected
+            } else {
+                Style::Normal
+            };
+            if ui::button(rect, &label, style, true) && i != self.formation {
+                self.formation = i;
+                self.auto_fill(run);
+            }
+        }
+    }
+
     fn draw_party(&mut self, run: &Run) {
-        text::draw(
-            &format!("隊伍 {} 隻（點精靈，再點綠色格子）", run.party.len()),
-            40.0,
-            CARD_TOP - 10.0,
-            24.0,
-            palette::TEXT_DIM,
+        let pages = run.party.len().div_ceil(CARDS_PER_PAGE).max(1);
+        let arrow_y = CARD_TOP + (CARD_H - 44.0) / 2.0;
+        self.page = ui::pager(
+            Rect::new(MARGIN - 4.0, arrow_y, ARROW_W, 44.0),
+            Rect::new(W - MARGIN - ARROW_W + 4.0, arrow_y, ARROW_W, 44.0),
+            self.page,
+            pages,
         );
 
-        let pages = run.party.len().div_ceil(CARDS_PER_PAGE).max(1);
-        self.page = self.page.min(pages - 1);
-        let arrow_y = CARD_TOP + (CARD_H - 40.0) / 2.0;
-        if ui::button(
-            Rect::new(40.0, arrow_y, 28.0, 40.0),
-            "<",
-            self.page > 0,
-            false,
-        ) {
-            self.page -= 1;
-        }
-        let right = CARDS_LEFT + CARDS_PER_PAGE as f32 * (CARD_W + CARD_GAP);
-        if ui::button(
-            Rect::new(right, arrow_y, 28.0, 40.0),
-            ">",
-            self.page + 1 < pages,
-            false,
-        ) {
-            self.page += 1;
-        }
-
         let first = self.page * CARDS_PER_PAGE;
-        let on_page = first..run.party.len().min(first + CARDS_PER_PAGE);
-        let mut hovered = None;
-        for i in on_page {
-            let sprite = &run.party[i];
+        for i in first..run.party.len().min(first + CARDS_PER_PAGE) {
             let rect = card_rect(i - first);
-            if rect.contains(ui::mouse()) {
-                hovered = Some(i);
-            }
-            let placed = self.slots.contains(&Some(i));
-            let label = if placed {
-                format!("{} *", sprite.name)
+            let style = if self.selected == Some(i) {
+                Style::Selected
             } else {
-                sprite.name.clone()
+                Style::Normal
             };
-            if ui::button(rect, &label, true, self.selected == Some(i)) {
+            if ui::button(rect, &run.party[i].name, style, true) {
                 self.selected = if self.selected == Some(i) {
                     None
                 } else {
                     Some(i)
                 };
             }
+            // 已經上場的精靈，右上角一個綠點
+            if self.slots.contains(&Some(i)) {
+                draw_circle(rect.x + rect.w - 9.0, rect.y + 9.0, 4.0, palette::SUCCESS);
+            }
         }
 
-        let shown = self.selected.or(hovered);
-        if let Some(i) = shown {
-            let sprite = &run.party[i];
-            let s = &sprite.stats;
-            let lines = [
-                format!(
+        let info_y = CARD_TOP + CARD_H + 26.0;
+        match self.selected {
+            Some(i) => {
+                let sprite = &run.party[i];
+                let s = &sprite.stats;
+                let line1 = format!(
                     "{}　HP {}　攻擊 {}　防禦 {}",
                     sprite.name, s.hp, s.attack, s.defense
-                ),
-                format!("每 {} 回合攻擊，第 {} 回合開始", s.interval, s.start_turn),
-                format!(
-                    "技能「{}」：每 {} 次攻擊一次",
-                    sprite.skill.name, s.skill_every
-                ),
-            ];
-            for (n, line) in lines.iter().enumerate() {
-                let color = if n == 0 {
-                    palette::TEXT
-                } else {
-                    palette::TEXT_DIM
-                };
-                text::draw(line, 40.0, 528.0 + n as f32 * 25.0, 24.0, color);
+                );
+                let line2 = format!(
+                    "每 {} 回合攻擊（第 {} 回合起）・技能每 {} 次",
+                    s.interval, s.start_turn, s.skill_every
+                );
+                text::draw(&line1, MARGIN, info_y, 18.0, palette::TEXT);
+                text::draw(&line2, MARGIN, info_y + 22.0, 18.0, palette::TEXT_DIM);
+            }
+            None => {
+                text::draw(
+                    "點隊伍中的精靈，再點綠色格子放上去",
+                    MARGIN,
+                    info_y,
+                    18.0,
+                    palette::TEXT_DIM,
+                );
+                text::draw(
+                    "點格子裡的精靈可以拿起來",
+                    MARGIN,
+                    info_y + 22.0,
+                    18.0,
+                    palette::TEXT_MUTED,
+                );
             }
         }
     }
