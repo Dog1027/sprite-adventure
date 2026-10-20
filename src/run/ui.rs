@@ -1,6 +1,7 @@
 //! 簡單的介面元件（即時模式：畫出來的同時判斷點擊）
 
 use super::Run;
+use crate::palette;
 use crate::text;
 use macroquad::prelude::*;
 
@@ -16,14 +17,18 @@ pub fn clicked() -> bool {
 pub fn button(rect: Rect, label: &str, enabled: bool, active: bool) -> bool {
     let hover = enabled && rect.contains(mouse());
     let bg = match (enabled, active, hover) {
-        (false, _, _) => Color::new(0.25, 0.25, 0.28, 1.0),
-        (true, true, _) => Color::new(0.2, 0.45, 0.7, 1.0),
-        (true, false, true) => Color::new(0.4, 0.4, 0.45, 1.0),
-        (true, false, false) => Color::new(0.32, 0.32, 0.36, 1.0),
+        (false, _, _) => palette::BUTTON_DISABLED,
+        (true, true, _) => palette::BUTTON_ACTIVE,
+        (true, false, true) => palette::BUTTON_HOVER,
+        (true, false, false) => palette::BUTTON,
     };
     draw_rectangle(rect.x, rect.y, rect.w, rect.h, bg);
-    draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, LIGHTGRAY);
-    let color = if enabled { WHITE } else { GRAY };
+    draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, palette::BUTTON_BORDER);
+    let color = if enabled {
+        palette::TEXT
+    } else {
+        palette::TEXT_MUTED
+    };
     text::centered(label, rect.center(), 24.0, color);
     hover && clicked()
 }
@@ -37,5 +42,5 @@ pub fn draw_status(run: &Run) {
         run.party.len()
     );
     let w = text::measure(&status, 24.0).width;
-    text::draw(&status, 760.0 - w, 50.0, 24.0, WHITE);
+    text::draw(&status, 760.0 - w, 50.0, 24.0, palette::TEXT);
 }

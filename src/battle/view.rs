@@ -2,6 +2,7 @@
 //! 棋盤與精靈的畫法也提供給擺位畫面使用。
 
 use super::{Battle, DEPTHS, Event, Outcome, Pos, ROWS, Side, Unit};
+use crate::palette;
 use crate::text;
 use macroquad::prelude::*;
 
@@ -36,11 +37,17 @@ impl BattleScreen {
 
     pub fn draw(&self) {
         let b = &self.battle;
-        text::draw(&format!("第 {} 回合", b.turn), 40.0, 60.0, 36.0, WHITE);
+        text::draw(
+            &format!("第 {} 回合", b.turn),
+            40.0,
+            60.0,
+            36.0,
+            palette::TEXT,
+        );
         if let Some(outcome) = b.outcome {
             let (label, color) = match outcome {
-                Outcome::Win => ("勝利", GREEN),
-                Outcome::Lose => ("戰敗", RED),
+                Outcome::Win => ("勝利", palette::SUCCESS),
+                Outcome::Lose => ("戰敗", palette::FAILURE),
             };
             text::centered(label, vec2(400.0, 480.0), 48.0, color);
         }
@@ -55,11 +62,15 @@ impl BattleScreen {
                     skill,
                     ..
                 } => {
-                    let color = if skill { GOLD } else { ORANGE };
+                    let color = if skill {
+                        palette::SKILL
+                    } else {
+                        palette::ATTACK_LINE
+                    };
                     draw_link(&b.units[attacker], &b.units[target], 2.0, color);
                 }
                 Event::Heal { healer, target, .. } => {
-                    draw_link(&b.units[healer], &b.units[target], 2.0, GREEN);
+                    draw_link(&b.units[healer], &b.units[target], 2.0, palette::HEAL);
                 }
                 Event::Defeated { .. } => {}
             }
@@ -115,7 +126,7 @@ impl BattleScreen {
                 format!("-{damage}")
             };
             // 傷害靠右畫在名字下方
-            draw_right_aligned(&b.units[target], &label, 54.0, RED);
+            draw_right_aligned(&b.units[target], &label, 54.0, palette::DAMAGE);
         }
         for (target, amount) in heal_totals {
             // 治療量畫在格子下緣，和上緣的技能名稱同樣用標籤
@@ -124,7 +135,7 @@ impl BattleScreen {
             draw_tag(
                 &format!("+{amount}"),
                 vec2(x, cell_origin(u.side, u.pos).y + CELL - 4.0),
-                GREEN,
+                palette::HEAL,
             );
         }
         for caster in casters {
@@ -143,19 +154,17 @@ fn draw_right_aligned(u: &Unit, label: &str, y: f32, color: Color) {
 fn draw_skill_name(u: &Unit) {
     let x = cell_center(u.side, u.pos).x;
     let top = cell_origin(u.side, u.pos).y;
-    draw_tag(&format!("「{}」", u.skill.name), vec2(x, top + 2.0), GOLD);
+    draw_tag(
+        &format!("「{}」", u.skill.name),
+        vec2(x, top + 2.0),
+        palette::SKILL,
+    );
 }
 
 /// 有深色底的小標籤，以 `center` 為中心
 fn draw_tag(label: &str, center: Vec2, color: Color) {
     let w = text::measure(label, 12.0).width + 8.0;
-    draw_rectangle(
-        center.x - w / 2.0,
-        center.y - 8.0,
-        w,
-        16.0,
-        Color::new(0.1, 0.1, 0.12, 0.9),
-    );
+    draw_rectangle(center.x - w / 2.0, center.y - 8.0, w, 16.0, palette::TAG_BG);
     text::centered(label, center, 12.0, color);
 }
 
@@ -191,7 +200,7 @@ pub fn draw_boards() {
         for row in 0..ROWS {
             for depth in 0..DEPTHS {
                 let o = cell_origin(side, Pos { row, depth });
-                draw_rectangle_lines(o.x, o.y, CELL, CELL, 2.0, GRAY);
+                draw_rectangle_lines(o.x, o.y, CELL, CELL, 2.0, palette::GRID);
             }
         }
     }
@@ -200,21 +209,33 @@ pub fn draw_boards() {
 pub fn draw_unit(u: &Unit) {
     let o = cell_origin(u.side, u.pos);
     let color = match (u.alive(), u.side) {
-        (false, _) => Color::new(0.3, 0.3, 0.3, 1.0),
-        (true, Side::Ally) => SKYBLUE,
-        (true, Side::Enemy) => PINK,
+        (false, _) => palette::DEFEATED,
+        (true, Side::Ally) => palette::ALLY,
+        (true, Side::Enemy) => palette::ENEMY,
     };
     draw_rectangle(o.x + 8.0, o.y + 8.0, CELL - 16.0, CELL - 32.0, color);
-    text::draw(&u.name, o.x + 12.0, o.y + 32.0, 24.0, BLACK);
+    text::draw(
+        &u.name,
+        o.x + 12.0,
+        o.y + 32.0,
+        24.0,
+        palette::TEXT_ON_LIGHT,
+    );
 
     let ratio = u.hp as f32 / u.stats.hp as f32;
-    draw_rectangle(o.x + 8.0, o.y + CELL - 20.0, CELL - 16.0, 8.0, DARKGRAY);
+    draw_rectangle(
+        o.x + 8.0,
+        o.y + CELL - 20.0,
+        CELL - 16.0,
+        8.0,
+        palette::HP_BAR_BG,
+    );
     draw_rectangle(
         o.x + 8.0,
         o.y + CELL - 20.0,
         (CELL - 16.0) * ratio,
         8.0,
-        GREEN,
+        palette::HP_BAR,
     );
 }
 
@@ -234,7 +255,10 @@ pub fn draw_preview(units: &[Unit]) {
                 &units[attacker],
                 &units[t],
                 2.0,
-                Color::new(1.0, 0.8, 0.2, alpha),
+                Color {
+                    a: alpha,
+                    ..palette::PREVIEW_LINE
+                },
             );
         }
         let names: Vec<&str> = targets.iter().map(|&t| units[t].name.as_str()).collect();
@@ -244,7 +268,7 @@ pub fn draw_preview(units: &[Unit]) {
             o.x + 12.0,
             o.y + 50.0,
             12.0,
-            BLACK,
+            palette::TEXT_ON_LIGHT,
         );
     }
 }

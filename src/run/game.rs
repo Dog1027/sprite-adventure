@@ -6,6 +6,7 @@ use super::rest_view::RestScreen;
 use super::{Reward, Run, catch_view, map_view, shop_view, ui};
 use crate::battle::Outcome;
 use crate::battle::view::BattleScreen;
+use crate::palette;
 use crate::text;
 use macroquad::prelude::*;
 
@@ -64,10 +65,10 @@ impl Game {
                     if r.balls > 0 {
                         label += &format!("、捕捉球 ×{}", r.balls);
                     }
-                    text::centered(&label, vec2(400.0, 522.0), 24.0, GOLD);
+                    text::centered(&label, vec2(400.0, 522.0), 24.0, palette::HIGHLIGHT);
                 }
                 screen.battle.outcome.and_then(|outcome| {
-                    text::centered("點擊繼續", vec2(400.0, 562.0), 24.0, LIGHTGRAY);
+                    text::centered("點擊繼續", vec2(400.0, 562.0), 24.0, palette::TEXT_DIM);
                     ui::clicked().then(|| match outcome {
                         Outcome::Lose => Scene::GameOver,
                         Outcome::Win if kind == Some(NodeKind::Boss) => Scene::Cleared,
@@ -84,22 +85,32 @@ impl Game {
                 Scene::Map
             }),
             Scene::Notice(title) => {
-                text::centered(title, center, 36.0, WHITE);
-                text::centered("（尚未實作）", center + vec2(0.0, 40.0), 24.0, GRAY);
-                text::centered("點擊繼續", center + vec2(0.0, 120.0), 24.0, LIGHTGRAY);
+                text::centered(title, center, 36.0, palette::TEXT);
+                text::centered(
+                    "（尚未實作）",
+                    center + vec2(0.0, 40.0),
+                    24.0,
+                    palette::TEXT_MUTED,
+                );
+                text::centered(
+                    "點擊繼續",
+                    center + vec2(0.0, 120.0),
+                    24.0,
+                    palette::TEXT_DIM,
+                );
                 ui::clicked().then_some(Scene::Map)
             }
             Scene::GameOver | Scene::Cleared => {
                 let (title, color) = match self.scene {
-                    Scene::GameOver => ("冒險失敗", RED),
-                    _ => ("過關！", GREEN),
+                    Scene::GameOver => ("冒險失敗", palette::FAILURE),
+                    _ => ("過關！", palette::SUCCESS),
                 };
                 text::centered(title, center, 48.0, color);
                 text::centered(
                     "點擊開始新的冒險",
                     center + vec2(0.0, 80.0),
                     24.0,
-                    LIGHTGRAY,
+                    palette::TEXT_DIM,
                 );
                 if ui::clicked() {
                     self.seed += 1;

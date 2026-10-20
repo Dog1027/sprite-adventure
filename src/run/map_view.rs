@@ -3,6 +3,7 @@
 use super::Run;
 use super::map::{NodeKind, STAGES};
 use super::ui;
+use crate::palette;
 use crate::text;
 use macroquad::prelude::*;
 
@@ -23,19 +24,19 @@ fn node_pos(run: &Run, id: usize) -> Vec2 {
 
 fn label(kind: NodeKind) -> (&'static str, Color) {
     match kind {
-        NodeKind::Wild => ("野", Color::new(0.5, 0.75, 0.5, 1.0)),
-        NodeKind::Elite => ("菁", ORANGE),
-        NodeKind::Shop => ("商", GOLD),
-        NodeKind::Catch => ("捕", PINK),
-        NodeKind::Rest => ("休", SKYBLUE),
-        NodeKind::Event => ("事", VIOLET),
-        NodeKind::Boss => ("王", RED),
+        NodeKind::Wild => ("野", palette::NODE_WILD),
+        NodeKind::Elite => ("菁", palette::NODE_ELITE),
+        NodeKind::Shop => ("商", palette::NODE_SHOP),
+        NodeKind::Catch => ("捕", palette::NODE_CATCH),
+        NodeKind::Rest => ("休", palette::NODE_REST),
+        NodeKind::Event => ("事", palette::NODE_EVENT),
+        NodeKind::Boss => ("王", palette::NODE_BOSS),
     }
 }
 
 /// 畫出地圖；玩家點了可以走的節點時回傳它
 pub fn frame(run: &Run) -> Option<usize> {
-    text::draw("選擇路線", 40.0, 50.0, 36.0, WHITE);
+    text::draw("選擇路線", 40.0, 50.0, 36.0, palette::TEXT);
     ui::draw_status(run);
 
     for (id, n) in run.map.nodes.iter().enumerate() {
@@ -44,9 +45,9 @@ pub fn frame(run: &Run) -> Option<usize> {
             let b = node_pos(run, t);
             let walked = run.path.windows(2).any(|w| w == [id, t]);
             let (thick, color) = if walked {
-                (4.0, WHITE)
+                (4.0, palette::PATH_TAKEN)
             } else {
-                (2.0, DARKGRAY)
+                (2.0, palette::PATH)
             };
             draw_line(a.x, a.y, b.x, b.y, thick, color);
         }
@@ -66,13 +67,17 @@ pub fn frame(run: &Run) -> Option<usize> {
         };
         draw_circle(p.x, p.y, RADIUS, fill);
         if can_go {
-            let ring = if hover { WHITE } else { YELLOW };
+            let ring = if hover {
+                palette::NODE_FOCUS
+            } else {
+                palette::NODE_RING
+            };
             draw_circle_lines(p.x, p.y, RADIUS + 4.0, 3.0, ring);
         }
         if run.current() == Some(id) {
-            draw_circle_lines(p.x, p.y, RADIUS + 4.0, 3.0, WHITE);
+            draw_circle_lines(p.x, p.y, RADIUS + 4.0, 3.0, palette::NODE_FOCUS);
         }
-        text::centered(label_text, p, 24.0, BLACK);
+        text::centered(label_text, p, 24.0, palette::TEXT_ON_LIGHT);
         if hover && ui::clicked() {
             picked = Some(id);
         }
@@ -83,7 +88,7 @@ pub fn frame(run: &Run) -> Option<usize> {
         40.0,
         570.0,
         24.0,
-        LIGHTGRAY,
+        palette::TEXT_DIM,
     );
     picked
 }

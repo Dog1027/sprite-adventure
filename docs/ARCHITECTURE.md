@@ -9,6 +9,7 @@ src/
 ├── main.rs            入口：建立視窗，每幀呼叫 run::Game
 ├── rng.rs             共用亂數（同種子可重現）
 ├── text.rs            共用文字繪製（中文字型），所有畫面都用它畫字
+├── palette.rs         配色表：所有畫面的顏色都從這裡取，依用途命名
 ├── sprite/            精靈
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
 │   ├── skill.rs       技能資料：Skill、Range（範圍）
@@ -89,6 +90,7 @@ main ──→ run ──→ battle ──→ sprite
 - 每個模組的內部可以自由修改；改到上表的介面要先討論
 - 規則有變動時先更新 DESIGN.md
 - 每個模組的邏輯寫單元測試，提交前執行 `cargo test` 和 `cargo clippy`
+- 畫面的顏色一律用 `palette` 裡的名稱，不要直接寫 `WHITE` 或 `Color::new(...)`；需要新用途時在 `palette.rs` 加一個
 - 畫面程式和邏輯分開：邏輯（例如 `battle/mod.rs`、`targeting.rs`、`run/map.rs`）不呼叫 macroquad，才能寫單元測試
 
 ## 已決定的介面規則

@@ -1,6 +1,7 @@
 //! 休息畫面：選一隻精靈，再選要強化 HP、攻擊或防禦。規則見 docs/DESIGN.md「精靈」。
 
 use super::{Run, ui};
+use crate::palette;
 use crate::sprite::growth::Boost;
 use crate::text;
 use macroquad::prelude::*;
@@ -38,18 +39,29 @@ pub struct RestScreen {
 impl RestScreen {
     /// 畫出休息畫面並處理強化；按下繼續或離開時回傳 true
     pub fn frame(&mut self, run: &mut Run) -> bool {
-        text::draw("休息", 40.0, 50.0, 36.0, WHITE);
+        text::draw("休息", 40.0, 50.0, 36.0, palette::TEXT);
         ui::draw_status(run);
 
         if let Some((i, boost, amount)) = self.done {
             let line = format!("{} 的{} +{}", run.party[i].name, boost.label(), amount);
             let center = vec2(400.0, 260.0);
-            text::centered(&line, center, 36.0, GREEN);
-            text::centered("點擊繼續", center + vec2(0.0, 80.0), 24.0, LIGHTGRAY);
+            text::centered(&line, center, 36.0, palette::SUCCESS);
+            text::centered(
+                "點擊繼續",
+                center + vec2(0.0, 80.0),
+                24.0,
+                palette::TEXT_DIM,
+            );
             return ui::clicked();
         }
 
-        text::draw("選一隻精靈強化一項能力值", 40.0, 90.0, 24.0, LIGHTGRAY);
+        text::draw(
+            "選一隻精靈強化一項能力值",
+            40.0,
+            90.0,
+            24.0,
+            palette::TEXT_DIM,
+        );
         self.draw_party(run);
         if let Some(i) = self.selected
             && let Some(boost) = draw_boosts(run, i)
@@ -95,7 +107,7 @@ impl RestScreen {
 /// 畫出選中精靈的三個強化選項，顯示強化前後的數值；點擊時回傳選的項目
 fn draw_boosts(run: &Run, i: usize) -> Option<Boost> {
     let sprite = &run.party[i];
-    text::draw(&sprite.name, 40.0, PANEL_TOP, 36.0, WHITE);
+    text::draw(&sprite.name, 40.0, PANEL_TOP, 36.0, palette::TEXT);
     let mut chosen = None;
     for (n, boost) in Boost::ALL.into_iter().enumerate() {
         let value = boost.value(&sprite.stats);
@@ -106,6 +118,12 @@ fn draw_boosts(run: &Run, i: usize) -> Option<Boost> {
             chosen = Some(boost);
         }
     }
-    text::draw("節奏數值不能強化", 40.0, PANEL_TOP + 130.0, 24.0, GRAY);
+    text::draw(
+        "節奏數值不能強化",
+        40.0,
+        PANEL_TOP + 130.0,
+        24.0,
+        palette::TEXT_MUTED,
+    );
     chosen
 }

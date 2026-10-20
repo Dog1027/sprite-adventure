@@ -1,4 +1,5 @@
 mod battle;
+mod palette;
 mod rng;
 mod run;
 mod sprite;
@@ -23,7 +24,7 @@ async fn main() {
     let mut game = Game::new(1);
 
     loop {
-        clear_background(Color::new(0.15, 0.15, 0.18, 1.0));
+        clear_background(palette::BACKGROUND);
         game.frame(get_frame_time());
         next_frame().await;
     }

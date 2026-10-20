@@ -5,6 +5,7 @@ use super::ui;
 use crate::battle::formation::{MIN_UNITS, bonus_label};
 use crate::battle::view::{self, CELL};
 use crate::battle::{Side, Unit};
+use crate::palette;
 use crate::sprite::Sprite;
 use crate::text;
 use macroquad::prelude::*;
@@ -67,7 +68,7 @@ impl PlacementScreen {
 
     /// 畫出畫面並處理點擊；按下開戰時回傳擺好的我方精靈
     pub fn frame(&mut self, run: &Run) -> Option<Vec<Unit>> {
-        text::draw("選擇陣型並擺放精靈", 40.0, 50.0, 36.0, WHITE);
+        text::draw("選擇陣型並擺放精靈", 40.0, 50.0, 36.0, palette::TEXT);
 
         for (i, f) in run.formations.iter().enumerate() {
             let rect = Rect::new(40.0 + i as f32 * 150.0, 70.0, 140.0, 40.0);
@@ -87,7 +88,7 @@ impl PlacementScreen {
                 o.y + 2.0,
                 CELL - 4.0,
                 CELL - 4.0,
-                Color::new(0.2, 0.35, 0.25, 1.0),
+                palette::OPEN_SLOT,
             );
         }
 
@@ -109,7 +110,12 @@ impl PlacementScreen {
             let label = bonus_label(&formation.slot_percents(i));
             if !label.is_empty() {
                 let o = view::cell_origin(Side::Ally, pos);
-                text::centered(&label, vec2(o.x + CELL / 2.0, o.y + CELL - 6.0), 12.0, GOLD);
+                text::centered(
+                    &label,
+                    vec2(o.x + CELL / 2.0, o.y + CELL - 6.0),
+                    12.0,
+                    palette::HIGHLIGHT,
+                );
             }
         }
 
@@ -145,7 +151,11 @@ impl PlacementScreen {
             600.0,
             515.0,
             24.0,
-            if ready { LIGHTGRAY } else { ORANGE },
+            if ready {
+                palette::TEXT_DIM
+            } else {
+                palette::WARNING
+            },
         );
         if ui::button(Rect::new(600.0, 525.0, 160.0, 50.0), "開戰！", ready, false) {
             return formation.place(&self.placement(run), Side::Ally).ok();
@@ -159,7 +169,7 @@ impl PlacementScreen {
             40.0,
             CARD_TOP - 10.0,
             24.0,
-            LIGHTGRAY,
+            palette::TEXT_DIM,
         );
 
         let pages = run.party.len().div_ceil(CARDS_PER_PAGE).max(1);
@@ -223,7 +233,11 @@ impl PlacementScreen {
                 ),
             ];
             for (n, line) in lines.iter().enumerate() {
-                let color = if n == 0 { WHITE } else { LIGHTGRAY };
+                let color = if n == 0 {
+                    palette::TEXT
+                } else {
+                    palette::TEXT_DIM
+                };
                 text::draw(line, 40.0, 528.0 + n as f32 * 25.0, 24.0, color);
             }
         }
