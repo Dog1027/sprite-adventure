@@ -20,6 +20,8 @@ use map::{Map, NodeKind};
 const STARTERS: [&str; 4] = ["A1", "A2", "A3", "A4"];
 /// 敵方會出現的精靈；暫定
 const ENEMY_POOL: [&str; 3] = ["E1", "E2", "E3"];
+/// 野生戰鬥的敵方隻數；暫定
+const WILD_COUNT: usize = 3;
 
 /// 一局冒險的狀態
 pub struct Run {
@@ -73,8 +75,8 @@ impl Run {
         let slots = f.slots.len();
         // 上場隻數；暫定
         let count = match kind {
-            NodeKind::Wild => formation::MIN_UNITS,
-            NodeKind::Elite => slots.min(formation::MIN_UNITS + 1 + self.rng.below(2)),
+            NodeKind::Wild => WILD_COUNT,
+            NodeKind::Elite => slots.min(WILD_COUNT + 1 + self.rng.below(2)),
             _ => slots,
         };
 
@@ -89,7 +91,7 @@ impl Run {
             .map(|&c| c.then(|| species::create(ENEMY_POOL[self.rng.below(ENEMY_POOL.len())])))
             .collect();
         let placement: Vec<Option<&Sprite>> = sprites.iter().map(Option::as_ref).collect();
-        f.place(&placement, Side::Enemy).expect("敵方至少 3 隻")
+        f.place(&placement, Side::Enemy).expect("敵方至少 1 隻")
     }
 
     pub fn start_battle(&mut self, mut allies: Vec<Unit>, enemies: Vec<Unit>) -> Battle {

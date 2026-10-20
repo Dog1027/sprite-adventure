@@ -3,8 +3,10 @@
 use super::{DEPTHS, Pos, ROWS, Side, Unit};
 use crate::sprite::Sprite;
 
-/// 一場戰鬥最少、最多上場隻數
-pub const MIN_UNITS: usize = 3;
+/// 一場戰鬥最少上場隻數
+pub const MIN_UNITS: usize = 1;
+/// 每個陣型開放的格子數
+pub const MIN_SLOTS: usize = 3;
 pub const MAX_SLOTS: usize = 6;
 
 #[allow(dead_code)] // 各陣型的具體效果尚未決定
@@ -63,8 +65,8 @@ impl Formation {
             }
         }
         assert!(
-            (MIN_UNITS..=MAX_SLOTS).contains(&slots.len()),
-            "陣型 {name} 有 {} 格，必須是 {MIN_UNITS}～{MAX_SLOTS} 格",
+            (MIN_SLOTS..=MAX_SLOTS).contains(&slots.len()),
+            "陣型 {name} 有 {} 格，必須是 {MIN_SLOTS}～{MAX_SLOTS} 格",
             slots.len()
         );
         for b in &bonuses {
@@ -176,17 +178,17 @@ mod tests {
     }
 
     #[test]
-    fn needs_at_least_three_units() {
+    fn needs_at_least_one_unit() {
         let f = &samples()[1];
         let s = sprite();
-        let two = [Some(&s), None, Some(&s)];
+        let none = [None, None, None];
         assert_eq!(
-            f.place(&two, Side::Ally).unwrap_err(),
-            PlaceError::TooFew(2)
+            f.place(&none, Side::Ally).unwrap_err(),
+            PlaceError::TooFew(0)
         );
         // 不用擺滿
-        let three = [Some(&s), None, Some(&s), Some(&s)];
-        assert_eq!(f.place(&three, Side::Ally).unwrap().len(), 3);
+        let one = [None, Some(&s)];
+        assert_eq!(f.place(&one, Side::Ally).unwrap().len(), 1);
     }
 
     #[test]
