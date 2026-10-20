@@ -11,6 +11,7 @@ src/
 ├── sprite/            精靈
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
 │   ├── skill.rs       技能資料：Skill、Range（範圍）
+│   ├── growth.rs      休息強化：Boost、Sprite::enhance
 │   └── species.rs     讀取精靈種類資料（data/species.toml）
 ├── battle/            戰鬥
 │   ├── mod.rs         棋盤、Unit、Battle（回合進行與結算）、Event、Outcome
@@ -27,7 +28,7 @@ src/
     └── ui.rs          按鈕等簡單介面元件
 
 data/
-└── species.toml       精靈種類的能力值、節奏數值與技能（編譯時嵌入程式）
+└── species.toml       精靈種類的能力值、節奏數值、技能、捕捉率（編譯時嵌入程式）
 ```
 
 ## 依賴方向
@@ -46,9 +47,9 @@ main ──→ run ──→ battle ──→ sprite
 
 | 模組 | 負責 | 之後要做 |
 |---|---|---|
-| 精靈 `sprite/` | 能力值、精靈資料、技能資料、成長、捕捉機率 | 休息強化、捕捉 |
+| 精靈 `sprite/` | 能力值、精靈資料、技能資料、成長、捕捉機率 | 道具對捕捉率的影響、平衡數值 |
 | 戰鬥 `battle/` | 棋盤、回合節奏、目標、傷害、結算、陣型、擺位預覽、戰鬥畫面 | 技能效果執行、治療、各陣型的實際效果 |
-| 流程 `run/` | 一局的狀態、分支地圖、各種節點、畫面切換、擺位畫面 | 商店、休息、事件、捕捉流程、陣型解鎖、多層 |
+| 流程 `run/` | 一局的狀態、分支地圖、各種節點、畫面切換、擺位畫面 | 商店、休息畫面（用 `enhance`）、事件、捕捉節點（用 `catch_rate`）、陣型解鎖、多層 |
 
 陣型的「定義與加成」屬於戰鬥；「選陣型、擺精靈的畫面」屬於流程，結果以 `Unit`（精靈＋位置）交給戰鬥。
 
@@ -60,6 +61,8 @@ main ──→ run ──→ battle ──→ sprite
 |---|---|---|
 | `Stats`、`Sprite` | `sprite/mod.rs` | 精靈 → 戰鬥、流程 |
 | `Skill`、`Range` | `sprite/skill.rs` | 精靈 → 戰鬥（執行技能效果） |
+| `Boost`、`Sprite::enhance` | `sprite/growth.rs` | 流程的休息畫面 |
+| `species::catch_rate` | `sprite/species.rs` | 流程的捕捉節點 |
 | `species::create` | `sprite/species.rs` | 流程用來建立精靈 |
 | `Unit::new(&Sprite, Side, Pos)` | `battle/mod.rs` | 把精靈放到某一格（不含陣型加成） |
 | `Formation`、`Formation::place`、`formation::samples` | `battle/formation.rs` | 流程依陣型擺位，取得含陣型加成的 `Unit` |

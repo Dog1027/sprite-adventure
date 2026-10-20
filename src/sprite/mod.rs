@@ -1,7 +1,8 @@
-//! 精靈：能力值、技能、精靈資料、之後的成長與捕捉。規則見 docs/DESIGN.md「精靈」「技能」「捕捉」。
+//! 精靈：能力值、技能、精靈資料、成長（休息強化）、捕捉機率。規則見 docs/DESIGN.md「精靈」「技能」「捕捉」。
 //!
 //! 這個模組不依賴其他遊戲模組；戰鬥與流程都透過 `Sprite`、`Stats`、`Skill`（`skill::Range`）使用它。
 
+pub mod growth;
 pub mod skill;
 pub mod species;
 

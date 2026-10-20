@@ -12,6 +12,8 @@
 #   name      技能名稱
 #   range     範圍：single 單體／row 貫穿整列／front 前排／snipe 狙擊後方／all 全體／heal 治療
 #   power     倍率（%）：傷害技能為攻擊的百分比；治療量 = 攻擊 × 倍率
+#
+# catch_rate  在捕捉節點的基本捕捉機率（0～100%，見 docs/DESIGN.md「捕捉」）
 
 # ── 我方 ──
 
@@ -23,6 +25,7 @@ interval = 1
 start_turn = 1
 skill_every = 3
 skill = { name = "橫掃", range = "row", power = 80 }
+catch_rate = 40
 
 [A2]
 hp = 80
@@ -32,6 +35,7 @@ interval = 2
 start_turn = 1
 skill_every = 2
 skill = { name = "穿心", range = "snipe", power = 150 }
+catch_rate = 35
 
 [A3]
 hp = 150
@@ -41,6 +45,7 @@ interval = 1
 start_turn = 2
 skill_every = 4
 skill = { name = "守護之光", range = "heal", power = 120 }
+catch_rate = 30
 
 [A4]
 hp = 60
@@ -50,6 +55,7 @@ interval = 3
 start_turn = 3
 skill_every = 2
 skill = { name = "暴風", range = "all", power = 50 }
+catch_rate = 25
 
 # ── 敵方 ──
 
@@ -61,6 +67,7 @@ interval = 1
 start_turn = 1
 skill_every = 3
 skill = { name = "重擊", range = "single", power = 200 }
+catch_rate = 50
 
 [E2]
 hp = 140
@@ -70,6 +77,7 @@ interval = 1
 start_turn = 1
 skill_every = 3
 skill = { name = "衝撞", range = "front", power = 90 }
+catch_rate = 45
 
 [E3]
 hp = 70
@@ -79,3 +87,4 @@ interval = 2
 start_turn = 2
 skill_every = 2
 skill = { name = "貫穿", range = "row", power = 80 }
+catch_rate = 40

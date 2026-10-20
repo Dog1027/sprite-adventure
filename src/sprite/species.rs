@@ -22,10 +22,18 @@ struct Entry {
     start_turn: u32,
     skill_every: u32,
     skill: Skill,
+    catch_rate: u32,
 }
 
-/// 解析並檢查資料檔，回傳「名稱 → 精靈」
-fn parse(text: &str) -> Result<BTreeMap<String, Sprite>, String> {
+/// 一種精靈：建立用的範本與捕捉率
+#[derive(Debug)]
+struct Species {
+    sprite: Sprite,
+    catch_rate: u32,
+}
+
+/// 解析並檢查資料檔，回傳「名稱 → 精靈種類」
+fn parse(text: &str) -> Result<BTreeMap<String, Species>, String> {
     let table: BTreeMap<String, Entry> =
         toml::from_str(text).map_err(|e| format!("精靈資料格式錯誤：{e}"))?;
     let mut sprites = BTreeMap::new();
@@ -41,6 +49,9 @@ fn parse(text: &str) -> Result<BTreeMap<String, Sprite>, String> {
                 return Err(format!("精靈 {name} 的 {field} 至少要是 1"));
             }
         }
+        if e.catch_rate > 100 {
+            return Err(format!("精靈 {name} 的 catch_rate 不能超過 100"));
+        }
         let stats = Stats {
             hp: e.hp,
             attack: e.attack,
@@ -50,22 +61,35 @@ fn parse(text: &str) -> Result<BTreeMap<String, Sprite>, String> {
             skill_every: e.skill_every,
         };
         let sprite = Sprite::new(&name, stats).with_skill(e.skill);
-        sprites.insert(name, sprite);
+        let species = Species {
+            sprite,
+            catch_rate: e.catch_rate,
+        };
+        sprites.insert(name, species);
     }
     Ok(sprites)
 }
 
-fn table() -> &'static BTreeMap<String, Sprite> {
-    static TABLE: OnceLock<BTreeMap<String, Sprite>> = OnceLock::new();
+fn table() -> &'static BTreeMap<String, Species> {
+    static TABLE: OnceLock<BTreeMap<String, Species>> = OnceLock::new();
     TABLE.get_or_init(|| parse(DATA).unwrap_or_else(|e| panic!("data/species.toml：{e}")))
+}
+
+fn get(name: &str) -> &'static Species {
+    table()
+        .get(name)
+        .unwrap_or_else(|| panic!("未知的精靈：{name}"))
 }
 
 /// 依名稱建立精靈
 pub fn create(name: &str) -> Sprite {
-    table()
-        .get(name)
-        .unwrap_or_else(|| panic!("未知的精靈：{name}"))
-        .clone()
+    get(name).sprite.clone()
+}
+
+/// 在捕捉節點的基本捕捉機率（%），會直接顯示給玩家。道具的影響之後再加
+#[allow(dead_code)] // 捕捉節點尚未實作
+pub fn catch_rate(name: &str) -> u32 {
+    get(name).catch_rate
 }
 
 #[cfg(test)]
@@ -74,7 +98,7 @@ mod tests {
     use crate::sprite::skill::Range;
 
     const VALID: &str = "[X]\nhp = 1\nattack = 1\ndefense = 0\ninterval = 1\nstart_turn = 1\nskill_every = 1\n\
-                         skill = { name = \"s\", range = \"row\", power = 80 }\n";
+                         skill = { name = \"s\", range = \"row\", power = 80 }\ncatch_rate = 40\n";
 
     #[test]
     fn data_file_is_valid() {
@@ -94,8 +118,20 @@ mod tests {
     #[test]
     fn parses_skill() {
         let t = parse(VALID).unwrap();
-        let skill = &t["X"].skill;
+        let skill = &t["X"].sprite.skill;
         assert_eq!((skill.range, skill.power), (Range::Row, 80));
+    }
+
+    #[test]
+    fn reads_catch_rate() {
+        assert_eq!(parse(VALID).unwrap()["X"].catch_rate, 40);
+        assert!(catch_rate("E1") <= 100);
+    }
+
+    #[test]
+    fn rejects_catch_rate_over_100() {
+        let text = VALID.replace("catch_rate = 40", "catch_rate = 101");
+        assert!(parse(&text).unwrap_err().contains("catch_rate"));
     }
 
     #[test]

@@ -1,0 +1,97 @@
+//! 成長：在休息節點強化精靈。規則見 docs/DESIGN.md「精靈」。
+
+use super::{Sprite, Stats};
+
+/// 每次強化提升目前數值的百分比；暫定
+pub const ENHANCE_PERCENT: u32 = 10;
+
+/// 休息時玩家可以選的強化項目（節奏數值不能強化）
+#[allow(dead_code)] // 休息畫面尚未實作
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Boost {
+    Hp,
+    Attack,
+    Defense,
+}
+
+#[allow(dead_code)] // 休息畫面尚未實作
+impl Boost {
+    pub const ALL: [Boost; 3] = [Boost::Hp, Boost::Attack, Boost::Defense];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Boost::Hp => "HP",
+            Boost::Attack => "攻擊",
+            Boost::Defense => "防禦",
+        }
+    }
+
+    fn value(self, stats: &Stats) -> u32 {
+        match self {
+            Boost::Hp => stats.hp,
+            Boost::Attack => stats.attack,
+            Boost::Defense => stats.defense,
+        }
+    }
+
+    fn value_mut(self, stats: &mut Stats) -> &mut u32 {
+        match self {
+            Boost::Hp => &mut stats.hp,
+            Boost::Attack => &mut stats.attack,
+            Boost::Defense => &mut stats.defense,
+        }
+    }
+}
+
+#[allow(dead_code)] // 休息畫面尚未實作
+impl Sprite {
+    /// 選這一項會提升多少：目前數值 × ENHANCE_PERCENT%，四捨五入，至少 1。給畫面預覽用
+    pub fn enhance_amount(&self, boost: Boost) -> u32 {
+        let v = boost.value(&self.stats);
+        ((v * ENHANCE_PERCENT + 50) / 100).max(1)
+    }
+
+    /// 強化一項能力值，回傳提升了多少
+    pub fn enhance(&mut self, boost: Boost) -> u32 {
+        let amount = self.enhance_amount(boost);
+        *boost.value_mut(&mut self.stats) += amount;
+        amount
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sprite::species;
+
+    #[test]
+    fn enhance_adds_percent_of_current_value() {
+        let mut s = species::create("A1"); // HP 120、攻擊 30、防禦 20
+        assert_eq!(s.enhance(Boost::Hp), 12);
+        assert_eq!(s.stats.hp, 132);
+        assert_eq!(s.enhance(Boost::Attack), 3);
+        assert_eq!(s.stats.attack, 33);
+    }
+
+    #[test]
+    fn enhance_rounds_and_gives_at_least_one() {
+        let mut s = species::create("A4"); // 防禦 0
+        assert_eq!(s.enhance(Boost::Defense), 1);
+        assert_eq!(s.stats.defense, 1);
+        let s = species::create("A2"); // 防禦 5 → 0.5 四捨五入為 1
+        assert_eq!(s.enhance_amount(Boost::Defense), 1);
+    }
+
+    #[test]
+    fn enhance_keeps_rhythm() {
+        let mut s = species::create("A1");
+        let before = s.stats;
+        for b in Boost::ALL {
+            s.enhance(b);
+        }
+        assert_eq!(
+            (s.stats.interval, s.stats.start_turn, s.stats.skill_every),
+            (before.interval, before.start_turn, before.skill_every)
+        );
+    }
+}
