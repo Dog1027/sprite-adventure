@@ -48,15 +48,20 @@ impl BattleScreen {
         draw_boards();
 
         for e in &self.events {
-            if let Event::Attack {
-                attacker,
-                target,
-                skill,
-                ..
-            } = *e
-            {
-                let color = if skill { GOLD } else { ORANGE };
-                draw_link(&b.units[attacker], &b.units[target], 2.0, color);
+            match *e {
+                Event::Attack {
+                    attacker,
+                    target,
+                    skill,
+                    ..
+                } => {
+                    let color = if skill { GOLD } else { ORANGE };
+                    draw_link(&b.units[attacker], &b.units[target], 2.0, color);
+                }
+                Event::Heal { healer, target, .. } => {
+                    draw_link(&b.units[healer], &b.units[target], 2.0, GREEN);
+                }
+                Event::Defeated { .. } => {}
             }
         }
 
@@ -64,37 +69,94 @@ impl BattleScreen {
             draw_unit(u);
         }
 
-        // 同一回合被打多次時合計傷害，避免數字重疊
-        let mut totals: Vec<(usize, u32, bool)> = Vec::new();
+        // 同一回合被打或被治療多次時合計，避免數字重疊
+        let mut damage_totals: Vec<(usize, u32, bool)> = Vec::new();
+        let mut heal_totals: Vec<(usize, u32)> = Vec::new();
+        let mut casters: Vec<usize> = Vec::new();
         for e in &self.events {
-            if let Event::Attack {
-                target,
-                damage,
-                skill,
-                ..
-            } = *e
-            {
-                match totals.iter_mut().find(|t| t.0 == target) {
-                    Some(t) => {
-                        t.1 += damage;
-                        t.2 |= skill;
+            match *e {
+                Event::Attack {
+                    attacker,
+                    target,
+                    damage,
+                    skill,
+                } => {
+                    match damage_totals.iter_mut().find(|t| t.0 == target) {
+                        Some(t) => {
+                            t.1 += damage;
+                            t.2 |= skill;
+                        }
+                        None => damage_totals.push((target, damage, skill)),
                     }
-                    None => totals.push((target, damage, skill)),
+                    if skill && !casters.contains(&attacker) {
+                        casters.push(attacker);
+                    }
                 }
+                Event::Heal {
+                    healer,
+                    target,
+                    amount,
+                } => {
+                    match heal_totals.iter_mut().find(|t| t.0 == target) {
+                        Some(t) => t.1 += amount,
+                        None => heal_totals.push((target, amount)),
+                    }
+                    if !casters.contains(&healer) {
+                        casters.push(healer);
+                    }
+                }
+                Event::Defeated { .. } => {}
             }
         }
-        for (target, damage, skill) in totals {
-            let o = cell_origin(b.units[target].side, b.units[target].pos);
+        for (target, damage, skill) in damage_totals {
             let label = if skill {
                 format!("-{damage}!")
             } else {
                 format!("-{damage}")
             };
-            // 靠右畫在名字下方
-            let w = text::measure(&label, 24.0).width;
-            text::draw(&label, o.x + CELL - 10.0 - w, o.y + 54.0, 24.0, RED);
+            // 傷害靠右畫在名字下方
+            draw_right_aligned(&b.units[target], &label, 54.0, RED);
+        }
+        for (target, amount) in heal_totals {
+            // 治療量畫在格子下緣，和上緣的技能名稱同樣用標籤
+            let u = &b.units[target];
+            let x = cell_center(u.side, u.pos).x;
+            draw_tag(
+                &format!("+{amount}"),
+                vec2(x, cell_origin(u.side, u.pos).y + CELL - 4.0),
+                GREEN,
+            );
+        }
+        for caster in casters {
+            draw_skill_name(&b.units[caster]);
         }
     }
+}
+
+fn draw_right_aligned(u: &Unit, label: &str, y: f32, color: Color) {
+    let o = cell_origin(u.side, u.pos);
+    let w = text::measure(label, 24.0).width;
+    text::draw(label, o.x + CELL - 10.0 - w, o.y + y, 24.0, color);
+}
+
+/// 施放技能時，在精靈上方顯示技能名稱
+fn draw_skill_name(u: &Unit) {
+    let x = cell_center(u.side, u.pos).x;
+    let top = cell_origin(u.side, u.pos).y;
+    draw_tag(&format!("「{}」", u.skill.name), vec2(x, top + 2.0), GOLD);
+}
+
+/// 有深色底的小標籤，以 `center` 為中心
+fn draw_tag(label: &str, center: Vec2, color: Color) {
+    let w = text::measure(label, 12.0).width + 8.0;
+    draw_rectangle(
+        center.x - w / 2.0,
+        center.y - 8.0,
+        w,
+        16.0,
+        Color::new(0.1, 0.1, 0.12, 0.9),
+    );
+    text::centered(label, center, 12.0, color);
 }
 
 /// 格子左上角的畫面座標。我方右側為前方，敵方左側為前方。

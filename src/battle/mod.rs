@@ -10,10 +10,11 @@ mod targeting;
 pub use targeting::preview;
 pub mod view;
 
-pub use damage::damage;
+use damage::{heal_amount, skill_damage};
 
 use crate::rng::Rng;
-use crate::sprite::{Sprite, Stats};
+use crate::sprite::skill::Range;
+use crate::sprite::{Skill, Sprite, Stats};
 
 /// 每邊棋盤的深度（前後）與列數（上下）
 pub const DEPTHS: u8 = 4;
@@ -44,6 +45,7 @@ pub struct Unit {
     pub side: Side,
     pub pos: Pos,
     pub stats: Stats,
+    pub skill: Skill,
     pub hp: u32,
     pub attacks_done: u32,
 }
@@ -59,6 +61,7 @@ impl Unit {
             side,
             pos,
             stats: sprite.stats,
+            skill: sprite.skill.clone(),
             hp: sprite.stats.hp,
             attacks_done: 0,
         }
@@ -77,16 +80,29 @@ pub enum Outcome {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
-    /// `skill` 為 true 表示這次輪到技能（技能尚未實作，暫時以普攻代替）
+    /// 普攻或傷害技能；範圍技能每個目標各一個事件。`skill` 為 true 表示這次是技能
     Attack {
         attacker: usize,
         target: usize,
         damage: u32,
         skill: bool,
     },
+    /// 治療技能；`amount` 是實際回復量（不超過最大 HP）
+    Heal {
+        healer: usize,
+        target: usize,
+        amount: u32,
+    },
     Defeated {
         unit: usize,
     },
+}
+
+/// 一隻精靈這回合要做的事：目標與倍率（%）
+enum Action {
+    /// 傷害；最後的 bool 表示是否為技能
+    Hit(Vec<usize>, u32, bool),
+    Heal(Vec<usize>, u32),
 }
 
 pub struct Battle {
@@ -120,33 +136,70 @@ impl Battle {
             .filter(|&i| self.units[i].alive() && acts_on(&self.units[i].stats, turn))
             .collect();
 
-        let mut events = Vec::new();
+        // 1. 回合開始時，依當下戰場決定所有行動
+        let mut actions: Vec<(usize, Action)> = Vec::new();
         for attacker in actors {
-            let Some(target) = targeting::pick_target(&self.units, attacker, &mut self.rng) else {
-                continue;
-            };
-            let defense = self.units[target].stats.defense;
             let unit = &mut self.units[attacker];
             unit.attacks_done += 1;
-            let skill = unit.attacks_done.is_multiple_of(unit.stats.skill_every);
-            let dmg = damage(unit.stats.attack, defense);
-            events.push(Event::Attack {
-                attacker,
-                target,
-                damage: dmg,
-                skill,
-            });
+            let skill = unit
+                .attacks_done
+                .is_multiple_of(unit.stats.skill_every)
+                .then(|| unit.skill.clone());
+            let action = match skill {
+                Some(skill) => {
+                    let targets =
+                        targeting::skill_targets(&self.units, attacker, skill.range, &mut self.rng);
+                    if skill.range == Range::Heal {
+                        Action::Heal(targets, skill.power)
+                    } else {
+                        Action::Hit(targets, skill.power, true)
+                    }
+                }
+                None => {
+                    let target = targeting::pick_target(&self.units, attacker, &mut self.rng);
+                    Action::Hit(target.into_iter().collect(), 100, false)
+                }
+            };
+            actions.push((attacker, action));
         }
 
-        // 治療：技能尚未實作，之後在此先結算
-
-        for e in &events {
-            if let Event::Attack { target, damage, .. } = *e {
-                let t = &mut self.units[target];
-                t.hp = t.hp.saturating_sub(damage);
+        // 2. 先結算所有治療
+        let mut events = Vec::new();
+        for (healer, action) in &actions {
+            if let Action::Heal(targets, power) = action {
+                let amount = heal_amount(self.units[*healer].stats.attack, *power);
+                for &target in targets {
+                    let t = &mut self.units[target];
+                    let healed = amount.min(t.stats.hp - t.hp);
+                    t.hp += healed;
+                    events.push(Event::Heal {
+                        healer: *healer,
+                        target,
+                        amount: healed,
+                    });
+                }
             }
         }
 
+        // 3. 再結算所有傷害（目標在步驟 1 就決定好，所以可能打過頭）
+        for (attacker, action) in &actions {
+            if let Action::Hit(targets, power, skill) = action {
+                let attack = self.units[*attacker].stats.attack;
+                for &target in targets {
+                    let dmg = skill_damage(attack, *power, self.units[target].stats.defense);
+                    let t = &mut self.units[target];
+                    t.hp = t.hp.saturating_sub(dmg);
+                    events.push(Event::Attack {
+                        attacker: *attacker,
+                        target,
+                        damage: dmg,
+                        skill: *skill,
+                    });
+                }
+            }
+        }
+
+        // 4. 結算完後，血量歸零的才退場
         let defeated: Vec<usize> = events
             .iter()
             .filter_map(|e| match *e {
@@ -196,6 +249,24 @@ pub(crate) mod tests {
 
     pub fn unit(side: Side, row: u8, depth: u8, s: Stats) -> Unit {
         Unit::new(&Sprite::new("u", s), side, Pos { row, depth })
+    }
+
+    /// 每次攻擊都放技能的精靈
+    pub fn skilled(side: Side, row: u8, depth: u8, s: Stats, range: Range, power: u32) -> Unit {
+        let skill = Skill {
+            name: "t".to_owned(),
+            range,
+            power,
+        };
+        let sprite = Sprite::new(
+            "u",
+            Stats {
+                skill_every: 1,
+                ..s
+            },
+        )
+        .with_skill(skill);
+        Unit::new(&sprite, side, Pos { row, depth })
     }
 
     #[test]
@@ -296,5 +367,75 @@ pub(crate) mod tests {
             assert!(b.turn < 1000);
         }
         assert_eq!(b.outcome, Some(Outcome::Win));
+    }
+
+    #[test]
+    fn heal_resolves_before_damage() {
+        // 隊友只剩 10 HP，同一回合被打 15、被治療 20 → 先治療所以活下來
+        let mut ally = unit(Side::Ally, 0, 0, stats(100, 0, 0));
+        ally.hp = 10;
+        ally.stats.start_turn = 99;
+        let healer = skilled(Side::Ally, 2, 3, stats(100, 20, 0), Range::Heal, 100);
+        let mut foe = unit(Side::Enemy, 0, 0, stats(1000, 15, 0));
+        foe.stats.skill_every = 99;
+        let mut b = Battle::new(vec![ally, healer, foe], 1);
+        let events = b.step();
+        assert!(events.contains(&Event::Heal {
+            healer: 1,
+            target: 0,
+            amount: 20
+        }));
+        assert_eq!(b.units[0].hp, 15);
+    }
+
+    #[test]
+    fn heal_is_capped_at_max_hp() {
+        let mut healer = skilled(Side::Ally, 0, 0, stats(100, 50, 0), Range::Heal, 100);
+        healer.hp = 90;
+        let mut foe = unit(Side::Enemy, 2, 3, stats(1000, 1, 0));
+        foe.stats.start_turn = 99;
+        let mut b = Battle::new(vec![healer, foe], 1);
+        let events = b.step();
+        assert!(events.contains(&Event::Heal {
+            healer: 0,
+            target: 0,
+            amount: 10
+        }));
+        assert_eq!(b.units[0].hp, 100);
+    }
+
+    #[test]
+    fn area_skill_hits_each_target_with_power() {
+        let a = skilled(Side::Ally, 0, 0, stats(100, 40, 0), Range::All, 50);
+        let mut e1 = unit(Side::Enemy, 0, 0, stats(100, 1, 0));
+        let mut e2 = unit(Side::Enemy, 2, 3, stats(100, 1, 100));
+        e1.stats.start_turn = 99;
+        e2.stats.start_turn = 99;
+        let mut b = Battle::new(vec![a, e1, e2], 1);
+        let events = b.step();
+        assert_eq!(
+            events,
+            vec![
+                Event::Attack {
+                    attacker: 0,
+                    target: 1,
+                    damage: 20,
+                    skill: true
+                },
+                Event::Attack {
+                    attacker: 0,
+                    target: 2,
+                    damage: 10,
+                    skill: true
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn units_carry_skill_from_data_file() {
+        let s = crate::sprite::species::create("A1");
+        let u = Unit::new(&s, Side::Ally, Pos { row: 0, depth: 0 });
+        assert_eq!(u.skill, s.skill);
     }
 }
