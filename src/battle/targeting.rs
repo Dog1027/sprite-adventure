@@ -1,8 +1,25 @@
-use super::{ROWS, Unit};
+use super::{ROWS, Side, Unit};
 use crate::rng::Rng;
 
 /// 普攻目標：同列最前面 → 最近的列最前面 → 剩餘血量比例低 → 隨機
 pub fn pick_target(units: &[Unit], attacker: usize, rng: &mut Rng) -> Option<usize> {
+    let candidates = candidates(units, attacker);
+    if candidates.is_empty() {
+        return None;
+    }
+    Some(candidates[rng.below(candidates.len())])
+}
+
+/// 擺位預覽：每隻我方精靈的第一個攻擊目標候選（平手時有多個）
+pub fn preview(units: &[Unit]) -> Vec<(usize, Vec<usize>)> {
+    (0..units.len())
+        .filter(|&i| units[i].side == Side::Ally && units[i].alive())
+        .map(|i| (i, candidates(units, i)))
+        .collect()
+}
+
+/// 隨機之前的所有候選目標
+fn candidates(units: &[Unit], attacker: usize) -> Vec<usize> {
     let me = &units[attacker];
     let row = me.pos.row;
     let side = me.side;
@@ -19,10 +36,9 @@ pub fn pick_target(units: &[Unit], attacker: usize, rng: &mut Rng) -> Option<usi
         fronts.extend(front);
     }
 
-    let nearest = fronts
-        .iter()
-        .map(|&i| units[i].pos.row.abs_diff(row))
-        .min()?;
+    let Some(nearest) = fronts.iter().map(|&i| units[i].pos.row.abs_diff(row)).min() else {
+        return Vec::new();
+    };
     let mut candidates: Vec<usize> = fronts
         .into_iter()
         .filter(|&i| units[i].pos.row.abs_diff(row) == nearest)
@@ -35,19 +51,18 @@ pub fn pick_target(units: &[Unit], attacker: usize, rng: &mut Rng) -> Option<usi
     let lowest = candidates
         .iter()
         .map(|&i| ratio_key(&units[i]))
-        .min_by(|a, b| (a.0 * b.1).cmp(&(b.0 * a.1)))?;
+        .min_by(|a, b| (a.0 * b.1).cmp(&(b.0 * a.1)))
+        .expect("至少有一個候選");
     candidates.retain(|&i| {
         let k = ratio_key(&units[i]);
         k.0 * lowest.1 == lowest.0 * k.1
     });
-
-    Some(candidates[rng.below(candidates.len())])
+    candidates
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::battle::Side;
     use crate::battle::tests::{stats, unit};
 
     #[test]
@@ -98,5 +113,15 @@ mod tests {
     fn no_enemies_left() {
         let units = [unit(Side::Ally, 0, 0, stats(10, 1, 0))];
         assert_eq!(pick_target(&units, 0, &mut Rng::new(1)), None);
+    }
+
+    #[test]
+    fn preview_lists_tied_candidates() {
+        let a = unit(Side::Ally, 1, 0, stats(10, 1, 0));
+        let b = unit(Side::Ally, 0, 2, stats(10, 1, 0));
+        let x = unit(Side::Enemy, 0, 0, stats(10, 1, 0));
+        let y = unit(Side::Enemy, 2, 0, stats(10, 1, 0));
+        let units = [a, b, x, y];
+        assert_eq!(preview(&units), vec![(0, vec![2, 3]), (1, vec![2])]);
     }
 }

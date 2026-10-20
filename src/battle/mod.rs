@@ -6,6 +6,8 @@
 mod damage;
 pub mod formation;
 mod targeting;
+
+pub use targeting::preview;
 pub mod view;
 
 pub use damage::damage;
