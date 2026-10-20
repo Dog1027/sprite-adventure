@@ -7,6 +7,7 @@ mod game;
 pub mod map;
 mod map_view;
 mod placement;
+mod rest_view;
 mod shop_view;
 mod ui;
 
@@ -15,6 +16,7 @@ pub use game::Game;
 use crate::battle::formation::{self, Formation};
 use crate::battle::{Battle, Side, Unit};
 use crate::rng::Rng;
+use crate::sprite::growth::Boost;
 use crate::sprite::{Sprite, generate, species};
 use map::{Map, NodeKind};
 
@@ -160,6 +162,11 @@ impl Run {
         true
     }
 
+    /// 休息：強化隊伍中第 i 隻精靈的一項能力值，回傳提升了多少
+    pub fn rest(&mut self, i: usize, boost: Boost) -> u32 {
+        self.party[i].enhance(boost)
+    }
+
     pub fn start_battle(&mut self, mut allies: Vec<Unit>, enemies: Vec<Unit>) -> Battle {
         allies.extend(enemies);
         let seed = self.rng.below(usize::MAX) as u64;
@@ -186,6 +193,17 @@ mod tests {
         let mut run = Run::new(3);
         let boss = run.map.stages[map::STAGES - 1][0];
         run.enter(boss);
+    }
+
+    #[test]
+    fn rest_enhances_chosen_sprite() {
+        let mut run = Run::new(1);
+        run.catch(generate::catch_offers(&mut Rng::new(1), 0, 1)[0]);
+        let before = run.party[1].stats;
+        let amount = run.rest(1, Boost::Attack);
+        assert_eq!(run.party[1].stats.attack, before.attack + amount);
+        assert_eq!(run.party[1].stats.hp, before.hp);
+        assert_eq!(run.party[0].stats, species::starter().stats);
     }
 
     #[test]

@@ -2,6 +2,7 @@
 
 use super::map::NodeKind;
 use super::placement::PlacementScreen;
+use super::rest_view::RestScreen;
 use super::{Reward, Run, catch_view, map_view, shop_view, ui};
 use crate::battle::Outcome;
 use crate::battle::view::BattleScreen;
@@ -14,6 +15,7 @@ enum Scene {
     /// 戰鬥畫面，打贏後記下得到的獎勵（只發一次）
     Battle(BattleScreen, Option<Reward>),
     Shop,
+    Rest(RestScreen),
     /// 捕捉節點出現的精靈
     Catch(Vec<&'static str>),
     /// 尚未實作的節點
@@ -74,6 +76,7 @@ impl Game {
                 })
             }
             Scene::Shop => shop_view::frame(&mut self.run).then_some(Scene::Map),
+            Scene::Rest(screen) => screen.frame(&mut self.run).then_some(Scene::Map),
             Scene::Catch(offers) => catch_view::frame(&self.run, offers).map(|choice| {
                 if let catch_view::Choice::Catch(name) = choice {
                     self.run.catch(name);
@@ -121,7 +124,7 @@ impl Game {
             }
             NodeKind::Catch => Scene::Catch(self.run.catch_offers()),
             NodeKind::Shop => Scene::Shop,
-            NodeKind::Rest => Scene::Notice("休息"),
+            NodeKind::Rest => Scene::Rest(RestScreen::default()),
             NodeKind::Event => Scene::Notice("事件"),
         }
     }

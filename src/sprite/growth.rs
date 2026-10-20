@@ -6,7 +6,6 @@ use super::{Sprite, Stats};
 pub const ENHANCE_PERCENT: u32 = 10;
 
 /// 休息時玩家可以選的強化項目（節奏數值不能強化）
-#[allow(dead_code)] // 休息畫面尚未實作
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Boost {
     Hp,
@@ -14,7 +13,6 @@ pub enum Boost {
     Defense,
 }
 
-#[allow(dead_code)] // 休息畫面尚未實作
 impl Boost {
     pub const ALL: [Boost; 3] = [Boost::Hp, Boost::Attack, Boost::Defense];
 
@@ -26,7 +24,8 @@ impl Boost {
         }
     }
 
-    fn value(self, stats: &Stats) -> u32 {
+    /// 這一項目前的數值
+    pub fn value(self, stats: &Stats) -> u32 {
         match self {
             Boost::Hp => stats.hp,
             Boost::Attack => stats.attack,
@@ -43,7 +42,6 @@ impl Boost {
     }
 }
 
-#[allow(dead_code)] // 休息畫面尚未實作
 impl Sprite {
     /// 選這一項會提升多少：目前數值 × ENHANCE_PERCENT%，四捨五入，至少 1。給畫面預覽用
     pub fn enhance_amount(&self, boost: Boost) -> u32 {
