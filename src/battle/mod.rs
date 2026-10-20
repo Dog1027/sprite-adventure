@@ -4,6 +4,7 @@
 //! 反覆呼叫 `Battle::step` 直到 `outcome` 有結果。畫面在 `view`。
 
 mod damage;
+pub mod formation;
 mod targeting;
 pub mod view;
 

@@ -1,5 +1,5 @@
 /// 傷害計算集中在這裡：攻擊 × 100 ÷ (100 + 防禦)，四捨五入，至少 1。
-/// 之後的屬性倍率、陣型加成也在這裡乘上去。
+/// 之後的屬性倍率也在這裡乘上去；陣型加成在擺位時已套用到能力值（見 formation.rs）。
 pub fn damage(attack: u32, defense: u32) -> u32 {
     let den = 100 + defense as u64;
     let rounded = (attack as u64 * 200 + den) / (den * 2);
