@@ -82,7 +82,7 @@ impl PlacementScreen {
 
         let formation = &run.formations[self.formation];
         view::draw_boards();
-        // 開放的格子與加成（空格時加成寫在地上）
+        // 開放的格子；空格的陣型加成寫在地上
         for (i, &pos) in formation.slots.iter().enumerate() {
             view::draw_slot(
                 Side::Ally,
@@ -92,25 +92,28 @@ impl PlacementScreen {
             );
             let label = bonus_label(&formation.slot_percents(i));
             if self.slots[i].is_none() && !label.is_empty() {
-                let c = view::cell_center(Side::Ally, pos);
-                text::centered(&label, c, 18.0, palette::HIGHLIGHT);
+                text::centered(
+                    &label,
+                    view::cell_center(Side::Ally, pos),
+                    12.0,
+                    palette::HIGHLIGHT,
+                );
             }
         }
 
-        // 我方精靈（含陣型加成，預覽才準）
+        // 我方精靈（含陣型加成，預覽才準），由後往前畫
         let placement = self.placement(run);
         let mut units = formation.place(&placement, Side::Ally).unwrap_or_default();
         units.extend(self.enemies.iter().cloned());
-        // 由後往前畫；我方的格子有加成時，左下角顯示加成（取代血量數字）
         for i in view::draw_order(&units) {
-            let u = &units[i];
-            let bonus = formation
-                .slots
-                .iter()
-                .position(|&p| p == u.pos && u.side == Side::Ally)
-                .map(|i| bonus_label(&formation.slot_percents(i)))
-                .filter(|l| !l.is_empty());
-            view::draw_unit(u, bonus.as_deref());
+            view::draw_unit(&units[i]);
+        }
+        // 站在有加成的格子上：立牌右上角一個金色圓點（選中時下方會寫出加成）
+        for (i, &pos) in formation.slots.iter().enumerate() {
+            if self.slots[i].is_some() && !formation.slot_percents(i).is_empty() {
+                let r = view::unit_rect(Side::Ally, pos);
+                draw_circle(r.x + r.w - 3.0, r.y + 3.0, 5.0, palette::HIGHLIGHT);
+            }
         }
         view::draw_preview(&units);
         if let Some(i) = self.selected
@@ -218,6 +221,14 @@ impl PlacementScreen {
                     s.interval, s.start_turn, s.skill_every
                 );
                 text::draw(&line1, MARGIN, info_y, 18.0, palette::TEXT);
+                // 擺在有加成的格子上時，右邊寫出這一格的加成
+                let formation = &run.formations[self.formation];
+                if let Some(slot) = self.slots.iter().position(|&s| s == Some(i)) {
+                    let bonus = bonus_label(&formation.slot_percents(slot));
+                    if !bonus.is_empty() {
+                        text::right(&bonus, W - MARGIN, info_y, 18.0, palette::HIGHLIGHT);
+                    }
+                }
                 text::draw(&line2, MARGIN, info_y + 22.0, 18.0, palette::TEXT_DIM);
             }
             None => {

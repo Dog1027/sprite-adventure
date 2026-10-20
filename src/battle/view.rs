@@ -1,10 +1,10 @@
 //! 戰鬥畫面：每隔一段時間進行一回合，畫出棋盤、攻擊線、血條與傷害數字。
 //! 棋盤與精靈的畫法也提供給擺位畫面使用。
 //!
-//! 斜向排版：我方在左下、敵方在右上，戰場往右上傾斜 `TILT_DEG` 度，雙方的前排朝向中間。
+//! 水平排版：我方在左、敵方在右，戰場從左下往右上傾斜 `TILT_DEG` 度，雙方的前排朝向中間。
 //! 每一格在地上是平行四邊形；精靈像立牌一樣站在格子上，由後往前畫，
 //! 前面的精靈會稍微蓋住後面的，有立體感（之後換成精靈動畫也照這個順序畫）。
-//! 「列」（`row`）是左到右的第 1～3 列，沿著戰場方向對齊，所以「同列」就是正對面。
+//! 「列」（`row`）是上到下的第 1～3 列，沿著戰場方向對齊，所以「同列」就是正對面。
 
 use super::{Battle, DEPTHS, Event, Pos, ROWS, Side, Unit};
 use crate::gfx;
@@ -13,57 +13,55 @@ use crate::screen::W;
 use crate::text;
 use macroquad::prelude::*;
 
-/// 戰場往右上傾斜的角度（從正上方往右算）
-const TILT_DEG: f32 = 22.0;
+/// 戰場往右上傾斜的角度（從水平往上算）
+const TILT_DEG: f32 = 25.0;
 /// 一行（前後一格）沿著戰場方向的長度
-const ROW_DEPTH: f32 = 58.0;
+const ROW_DEPTH: f32 = 54.0;
 /// 兩邊棋盤中間的空隙（前線）
-const FRONT_GAP: f32 = 24.0;
+const FRONT_GAP: f32 = 20.0;
 /// 整個戰場沿著戰場方向的長度：我方 4 行＋前線＋敵方 4 行
 const FIELD_LEN: f32 = ROW_DEPTH * (2 * DEPTHS) as f32 + FRONT_GAP;
-/// 戰場左右留白
-const FIELD_MARGIN: f32 = 16.0;
-/// 戰場最下緣（我方最後一行）的高度
+/// 一列（上下一格）的高度
+const LANE_H: f32 = 72.0;
+/// 戰場最下緣（我方最後一行、第 3 列）的高度
 const FIELD_BOTTOM: f32 = 600.0;
 /// 戰場下方可以放其他介面的位置
 pub const BOARD_BOTTOM: f32 = FIELD_BOTTOM + 8.0;
-/// 精靈立牌的大小：比格子寬一點，左右會稍微重疊
-const UNIT_EXTRA_W: f32 = 10.0;
-const UNIT_H: f32 = 48.0;
+/// 精靈立牌的大小：比一行寬一點，前後會稍微重疊
+const UNIT_W: f32 = 54.0;
+const UNIT_H: f32 = 46.0;
 /// 立牌下緣比格子中心低多少（看起來站在格子上）
-const UNIT_FOOT: f32 = 10.0;
+const UNIT_FOOT: f32 = 8.0;
 
 /// 一回合幾秒（一般、快轉）
 const TURN_SECONDS: f32 = 0.8;
 const FAST_TURN_SECONDS: f32 = 0.3;
 
-/// 往前（朝敵方）的方向，畫面座標的單位向量
+/// 往前（我方朝敵方）的方向，畫面座標的單位向量
 fn forward() -> Vec2 {
     let a = TILT_DEG.to_radians();
-    vec2(a.sin(), -a.cos())
+    vec2(a.cos(), -a.sin())
 }
 
-/// 一列的寬度：讓整個戰場剛好放進畫面寬度
-fn lane_w() -> f32 {
-    (W - 2.0 * FIELD_MARGIN - FIELD_LEN * forward().x) / ROWS as f32
-}
-
-/// 戰場座標的原點：我方最後一行下緣的中間
+/// 戰場座標的原點：我方最後一行左緣、中間那一列的中心
 fn origin() -> Vec2 {
-    vec2(W / 2.0 - FIELD_LEN * forward().x / 2.0, FIELD_BOTTOM)
+    vec2(
+        W / 2.0 - FIELD_LEN * forward().x / 2.0,
+        FIELD_BOTTOM - LANE_H * ROWS as f32 / 2.0,
+    )
 }
 
-/// 戰場座標 → 畫面座標。`v` 是左右（列的方向），`u` 是沿著戰場往前的距離
+/// 戰場座標 → 畫面座標。`v` 是上下（列的方向），`u` 是沿著戰場往前的距離
 fn to_screen(v: f32, u: f32) -> Vec2 {
-    origin() + vec2(v, 0.0) + forward() * u
+    origin() + vec2(0.0, v) + forward() * u
 }
 
 /// 畫面座標 → 戰場座標 (v, u)
 fn to_field(p: Vec2) -> (f32, f32) {
     let d = p - origin();
     let f = forward();
-    let u = d.y / f.y;
-    (d.x - u * f.x, u)
+    let u = d.x / f.x;
+    (d.y - u * f.y, u)
 }
 
 /// 這一行中心沿著戰場方向的距離
@@ -77,9 +75,9 @@ fn depth_u(side: Side, depth: u8) -> f32 {
     }
 }
 
-/// 這一列中心的左右位置
+/// 這一列中心的上下位置（第 1 列在上）
 fn row_v(row: u8) -> f32 {
-    (row as f32 - (ROWS as f32 - 1.0) / 2.0) * lane_w()
+    (row as f32 - (ROWS as f32 - 1.0) / 2.0) * LANE_H
 }
 
 /// 格子中心（地面）的畫面座標
@@ -90,12 +88,12 @@ pub fn cell_center(side: Side, pos: Pos) -> Vec2 {
 /// 格子在地面上的四個角（平行四邊形），往內縮 `inset`
 fn cell_corners(side: Side, pos: Pos, inset: f32) -> [Vec2; 4] {
     let (v, u) = (row_v(pos.row), depth_u(side, pos.depth));
-    let (hv, hu) = (lane_w() / 2.0 - inset, ROW_DEPTH / 2.0 - inset);
+    let (hv, hu) = (LANE_H / 2.0 - inset, ROW_DEPTH / 2.0 - inset);
     [
         to_screen(v - hv, u - hu),
-        to_screen(v + hv, u - hu),
-        to_screen(v + hv, u + hu),
         to_screen(v - hv, u + hu),
+        to_screen(v + hv, u + hu),
+        to_screen(v + hv, u - hu),
     ]
 }
 
@@ -121,8 +119,7 @@ pub fn draw_slot(side: Side, pos: Pos, fill: Color, border: Color) {
 /// 精靈立牌的範圍：站在格子中心
 pub fn unit_rect(side: Side, pos: Pos) -> Rect {
     let c = cell_center(side, pos);
-    let w = lane_w() + UNIT_EXTRA_W;
-    Rect::new(c.x - w / 2.0, c.y + UNIT_FOOT - UNIT_H, w, UNIT_H)
+    Rect::new(c.x - UNIT_W / 2.0, c.y + UNIT_FOOT - UNIT_H, UNIT_W, UNIT_H)
 }
 
 fn tile_rect(u: &Unit) -> Rect {
@@ -154,7 +151,7 @@ pub fn cell_at(side: Side, point: Vec2) -> Option<Pos> {
     on_unit.or_else(|| {
         let (v, u) = to_field(point);
         all.into_iter().find(|&pos| {
-            (v - row_v(pos.row)).abs() <= lane_w() / 2.0
+            (v - row_v(pos.row)).abs() <= LANE_H / 2.0
                 && (u - depth_u(side, pos.depth)).abs() <= ROW_DEPTH / 2.0
         })
     })
@@ -249,7 +246,7 @@ impl BattleScreen {
         }
 
         for i in draw_order(&b.units) {
-            draw_unit(&b.units[i], None);
+            draw_unit(&b.units[i]);
             // 被打的精靈閃一下
             if damage_totals.iter().any(|d| d.0 == i) {
                 gfx::rounded_rect(
@@ -330,7 +327,7 @@ fn draw_tag(label: &str, center: Vec2, color: Color) {
 
 /// 雙方棋盤：底色、格線、「我方／敵方」、中間的前線
 pub fn draw_boards() {
-    let half = lane_w() * ROWS as f32 / 2.0;
+    let half = LANE_H * ROWS as f32 / 2.0;
     let board_len = ROW_DEPTH * DEPTHS as f32;
     for (side, start, tint) in [
         (Side::Ally, 0.0, palette::BOARD_ALLY),
@@ -339,9 +336,9 @@ pub fn draw_boards() {
         fill_quad(
             [
                 to_screen(-half, start),
-                to_screen(half, start),
-                to_screen(half, start + board_len),
                 to_screen(-half, start + board_len),
+                to_screen(half, start + board_len),
+                to_screen(half, start),
             ],
             tint,
         );
@@ -355,21 +352,22 @@ pub fn draw_boards() {
             }
         }
     }
-    // 空出來的兩個角落放「敵方」「我方」
-    let top = FIELD_BOTTOM + FIELD_LEN * forward().y;
+    // 空出來的兩個角落放「我方」「敵方」
+    let ally_top = to_screen(-half, 0.0);
     text::draw(
-        "敵方",
-        FIELD_MARGIN,
-        top + 24.0,
-        24.0,
-        gfx::with_alpha(palette::ENEMY, 0.7),
-    );
-    text::right(
         "我方",
-        W - FIELD_MARGIN,
-        FIELD_BOTTOM - 6.0,
+        ally_top.x,
+        ally_top.y - 46.0,
         24.0,
         gfx::with_alpha(palette::ALLY, 0.7),
+    );
+    let enemy_bottom = to_screen(half, FIELD_LEN);
+    text::right(
+        "敵方",
+        enemy_bottom.x,
+        enemy_bottom.y + 34.0,
+        24.0,
+        gfx::with_alpha(palette::ENEMY, 0.7),
     );
     // 前線：虛線
     let u = board_len + FRONT_GAP / 2.0;
@@ -382,22 +380,22 @@ pub fn draw_boards() {
     }
 }
 
-/// 畫一隻精靈的立牌。`footer` 會畫在左下角並取代血量數字（擺位畫面用來顯示陣型加成）
-pub fn draw_unit(u: &Unit, footer: Option<&str>) {
+/// 畫一隻精靈的立牌
+pub fn draw_unit(u: &Unit) {
     let r = tile_rect(u);
     // 腳下的影子
     let c = cell_center(u.side, u.pos);
     draw_ellipse(
         c.x,
         c.y + UNIT_FOOT - 2.0,
-        r.w * 0.42,
+        r.w * 0.45,
         7.0,
         0.0,
         Color::new(0.0, 0.0, 0.0, 0.35),
     );
     if !u.alive() {
         gfx::rounded_rect(r, 8.0, gfx::with_alpha(palette::DEFEATED, 0.6));
-        text::draw(&u.name, r.x + 8.0, r.y + 26.0, 24.0, palette::TEXT_MUTED);
+        text::draw(&u.name, r.x + 7.0, r.y + 22.0, 18.0, palette::TEXT_MUTED);
         return;
     }
     let side_color = match u.side {
@@ -411,10 +409,10 @@ pub fn draw_unit(u: &Unit, footer: Option<&str>) {
         gfx::shade(side_color, -0.72),
     );
     gfx::rounded_rect_lines(r, 8.0, 2.0, gfx::with_alpha(side_color, 0.9));
-    text::draw(&u.name, r.x + 8.0, r.y + 26.0, 24.0, palette::TEXT);
+    text::draw(&u.name, r.x + 7.0, r.y + 22.0, 18.0, palette::TEXT);
 
     let ratio = u.hp as f32 / u.stats.hp as f32;
-    let bar = Rect::new(r.x + 7.0, r.y + 31.0, r.w - 14.0, 6.0);
+    let bar = Rect::new(r.x + 7.0, r.y + 28.0, r.w - 14.0, 5.0);
     gfx::rounded_rect(bar, 3.0, palette::HP_BAR_BG);
     if ratio > 0.0 {
         let fill = if ratio < 0.3 {
@@ -428,16 +426,13 @@ pub fn draw_unit(u: &Unit, footer: Option<&str>) {
             fill,
         );
     }
-    match footer {
-        Some(label) => text::draw(label, r.x + 7.0, r.y + r.h - 1.0, 12.0, palette::HIGHLIGHT),
-        None => text::right(
-            &format!("{}/{}", u.hp, u.stats.hp),
-            r.x + r.w - 7.0,
-            r.y + r.h - 1.0,
-            12.0,
-            palette::TEXT_DIM,
-        ),
-    }
+    text::right(
+        &format!("{}/{}", u.hp, u.stats.hp),
+        r.x + r.w - 7.0,
+        r.y + r.h - 3.0,
+        12.0,
+        palette::TEXT_DIM,
+    );
 }
 
 /// 兩隻精靈之間的連線（攻擊線、預覽線），從立牌中心連到目標，目標那端畫一個圓點
