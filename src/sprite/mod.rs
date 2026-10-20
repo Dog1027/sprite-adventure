@@ -4,8 +4,11 @@
 
 pub mod species;
 
+use serde::Deserialize;
+
 /// 能力值與節奏數值，戰鬥只讀取這些值
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Stats {
     pub hp: u32,
     pub attack: u32,
