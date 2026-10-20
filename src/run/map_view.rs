@@ -3,6 +3,7 @@
 use super::Run;
 use super::map::{NodeKind, STAGES};
 use super::ui;
+use crate::text;
 use macroquad::prelude::*;
 
 const LEFT: f32 = 60.0;
@@ -22,18 +23,18 @@ fn node_pos(run: &Run, id: usize) -> Vec2 {
 
 fn label(kind: NodeKind) -> (&'static str, Color) {
     match kind {
-        NodeKind::Wild => ("W", Color::new(0.5, 0.75, 0.5, 1.0)),
-        NodeKind::Elite => ("E", ORANGE),
-        NodeKind::Shop => ("$", GOLD),
-        NodeKind::Rest => ("R", SKYBLUE),
-        NodeKind::Event => ("?", VIOLET),
-        NodeKind::Boss => ("B", RED),
+        NodeKind::Wild => ("野", Color::new(0.5, 0.75, 0.5, 1.0)),
+        NodeKind::Elite => ("菁", ORANGE),
+        NodeKind::Shop => ("商", GOLD),
+        NodeKind::Rest => ("休", SKYBLUE),
+        NodeKind::Event => ("事", VIOLET),
+        NodeKind::Boss => ("王", RED),
     }
 }
 
 /// 畫出地圖；玩家點了可以走的節點時回傳它
 pub fn frame(run: &Run) -> Option<usize> {
-    draw_text("Choose your path", 40.0, 50.0, 36.0, WHITE);
+    text::draw("選擇路線", 40.0, 50.0, 36.0, WHITE);
 
     for (id, n) in run.map.nodes.iter().enumerate() {
         let a = node_pos(run, id);
@@ -53,7 +54,7 @@ pub fn frame(run: &Run) -> Option<usize> {
     let mut picked = None;
     for (id, n) in run.map.nodes.iter().enumerate() {
         let p = node_pos(run, id);
-        let (text, color) = label(n.kind);
+        let (label_text, color) = label(n.kind);
         let can_go = choices.contains(&id);
         let hover = can_go && p.distance(ui::mouse()) <= RADIUS;
         let fill = if run.path.contains(&id) || can_go {
@@ -69,14 +70,14 @@ pub fn frame(run: &Run) -> Option<usize> {
         if run.current() == Some(id) {
             draw_circle_lines(p.x, p.y, RADIUS + 4.0, 3.0, WHITE);
         }
-        ui::centered_text(text, p, 28.0, BLACK);
+        text::centered(label_text, p, 24.0, BLACK);
         if hover && ui::clicked() {
             picked = Some(id);
         }
     }
 
-    draw_text(
-        "W wild   E elite   $ shop   R rest   ? event   B boss",
+    text::draw(
+        "野 野生戰鬥　菁 菁英　商 商店　休 休息　事 事件　王 頭目",
         40.0,
         570.0,
         24.0,

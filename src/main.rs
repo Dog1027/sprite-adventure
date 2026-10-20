@@ -2,6 +2,7 @@ mod battle;
 mod rng;
 mod run;
 mod sprite;
+mod text;
 
 use macroquad::prelude::*;
 use run::Game;
@@ -18,6 +19,7 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    text::load().await;
     let mut game = Game::new(1);
 
     loop {

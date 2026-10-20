@@ -1,5 +1,6 @@
 //! 簡單的介面元件（即時模式：畫出來的同時判斷點擊）
 
+use crate::text;
 use macroquad::prelude::*;
 
 pub fn mouse() -> Vec2 {
@@ -22,17 +23,6 @@ pub fn button(rect: Rect, label: &str, enabled: bool, active: bool) -> bool {
     draw_rectangle(rect.x, rect.y, rect.w, rect.h, bg);
     draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, LIGHTGRAY);
     let color = if enabled { WHITE } else { GRAY };
-    centered_text(label, rect.center(), 24.0, color);
+    text::centered(label, rect.center(), 24.0, color);
     hover && clicked()
-}
-
-pub fn centered_text(text: &str, center: Vec2, size: f32, color: Color) {
-    let m = measure_text(text, None, size as u16, 1.0);
-    draw_text(
-        text,
-        center.x - m.width / 2.0,
-        center.y + m.offset_y / 2.0,
-        size,
-        color,
-    );
 }

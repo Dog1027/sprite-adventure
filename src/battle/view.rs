@@ -2,6 +2,7 @@
 //! 棋盤與精靈的畫法也提供給擺位畫面使用。
 
 use super::{Battle, DEPTHS, Event, Outcome, Pos, ROWS, Side, Unit};
+use crate::text;
 use macroquad::prelude::*;
 
 pub const CELL: f32 = 80.0;
@@ -35,13 +36,13 @@ impl BattleScreen {
 
     pub fn draw(&self) {
         let b = &self.battle;
-        draw_text(format!("Turn {}", b.turn), 40.0, 60.0, 36.0, WHITE);
+        text::draw(&format!("第 {} 回合", b.turn), 40.0, 60.0, 36.0, WHITE);
         if let Some(outcome) = b.outcome {
-            let (text, color) = match outcome {
-                Outcome::Win => ("WIN", GREEN),
-                Outcome::Lose => ("LOSE", RED),
+            let (label, color) = match outcome {
+                Outcome::Win => ("勝利", GREEN),
+                Outcome::Lose => ("戰敗", RED),
             };
-            draw_text(text, 360.0, 500.0, 60.0, color);
+            text::centered(label, vec2(400.0, 480.0), 48.0, color);
         }
 
         draw_boards();
@@ -89,7 +90,9 @@ impl BattleScreen {
             } else {
                 format!("-{damage}")
             };
-            draw_text(&label, o.x + CELL - 38.0, o.y + 22.0, 22.0, RED);
+            // 靠右畫在名字下方
+            let w = text::measure(&label, 24.0).width;
+            text::draw(&label, o.x + CELL - 10.0 - w, o.y + 54.0, 24.0, RED);
         }
     }
 }
@@ -140,7 +143,7 @@ pub fn draw_unit(u: &Unit) {
         (true, Side::Enemy) => PINK,
     };
     draw_rectangle(o.x + 8.0, o.y + 8.0, CELL - 16.0, CELL - 32.0, color);
-    draw_text(&u.name, o.x + 14.0, o.y + 34.0, 24.0, BLACK);
+    text::draw(&u.name, o.x + 12.0, o.y + 32.0, 24.0, BLACK);
 
     let ratio = u.hp as f32 / u.stats.hp as f32;
     draw_rectangle(o.x + 8.0, o.y + CELL - 20.0, CELL - 16.0, 8.0, DARKGRAY);
@@ -174,11 +177,11 @@ pub fn draw_preview(units: &[Unit]) {
         }
         let names: Vec<&str> = targets.iter().map(|&t| units[t].name.as_str()).collect();
         let o = cell_origin(units[attacker].side, units[attacker].pos);
-        draw_text(
-            format!("> {}", names.join("/")),
+        text::draw(
+            &format!("→{}", names.join("/")),
             o.x + 12.0,
-            o.y + 52.0,
-            18.0,
+            o.y + 50.0,
+            12.0,
             BLACK,
         );
     }

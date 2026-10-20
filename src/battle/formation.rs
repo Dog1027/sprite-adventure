@@ -136,9 +136,9 @@ pub enum PlaceError {
 /// 範例陣型（形狀取自 DESIGN.md，名稱僅為示意，效果尚未決定）。之後改讀資料檔。
 pub fn samples() -> Vec<Formation> {
     vec![
-        Formation::from_rows("Arrow", ["..X.", ".XXX", "..X."], vec![]),
-        Formation::from_rows("Square", ["..XX", ".X.X", "..XX"], vec![]),
-        Formation::from_rows("Geese", ["X...", ".X..", "..X."], vec![]),
+        Formation::from_rows("鋒矢陣", ["..X.", ".XXX", "..X."], vec![]),
+        Formation::from_rows("方圓陣", ["..XX", ".X.X", "..XX"], vec![]),
+        Formation::from_rows("雁行陣", ["X...", ".X..", "..X."], vec![]),
     ]
 }
 

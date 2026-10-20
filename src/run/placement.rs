@@ -6,6 +6,7 @@ use crate::battle::formation::MIN_UNITS;
 use crate::battle::view::{self, CELL};
 use crate::battle::{Side, Unit};
 use crate::sprite::Sprite;
+use crate::text;
 use macroquad::prelude::*;
 
 const CARD_TOP: f32 = 440.0;
@@ -49,17 +50,11 @@ impl PlacementScreen {
 
     /// 畫出畫面並處理點擊；按下開戰時回傳擺好的我方精靈
     pub fn frame(&mut self, run: &Run) -> Option<Vec<Unit>> {
-        draw_text(
-            "Choose a formation and place your sprites",
-            40.0,
-            50.0,
-            30.0,
-            WHITE,
-        );
+        text::draw("選擇陣型並擺放精靈", 40.0, 50.0, 36.0, WHITE);
 
         for (i, f) in run.formations.iter().enumerate() {
-            let rect = Rect::new(40.0 + i as f32 * 130.0, 70.0, 120.0, 40.0);
-            let label = format!("{} ({})", f.name, f.slots.len());
+            let rect = Rect::new(40.0 + i as f32 * 150.0, 70.0, 140.0, 40.0);
+            let label = format!("{} {}格", f.name, f.slots.len());
             if ui::button(rect, &label, true, i == self.formation) && i != self.formation {
                 self.formation = i;
                 self.auto_fill(run);
@@ -115,29 +110,29 @@ impl PlacementScreen {
         let placed = self.slots.iter().flatten().count();
         let ready = placed >= MIN_UNITS;
         let hint = if ready {
-            format!("{placed} placed")
+            format!("已擺 {placed} 隻")
         } else {
-            format!("Place at least {MIN_UNITS} ({placed} placed)")
+            format!("至少擺 {MIN_UNITS} 隻")
         };
-        draw_text(
+        text::draw(
             &hint,
             600.0,
             515.0,
-            22.0,
+            24.0,
             if ready { LIGHTGRAY } else { ORANGE },
         );
-        if ui::button(Rect::new(600.0, 525.0, 160.0, 50.0), "Fight!", ready, false) {
+        if ui::button(Rect::new(600.0, 525.0, 160.0, 50.0), "開戰！", ready, false) {
             return formation.place(&self.placement(run), Side::Ally).ok();
         }
         None
     }
 
     fn draw_party(&mut self, run: &Run) {
-        draw_text(
-            "Party (click a sprite, then a green cell)",
+        text::draw(
+            "隊伍（點精靈，再點綠色格子）",
             40.0,
             CARD_TOP - 10.0,
-            22.0,
+            24.0,
             LIGHTGRAY,
         );
         for (i, sprite) in run.party.iter().enumerate() {
@@ -164,17 +159,23 @@ impl PlacementScreen {
             })
         });
         if let Some(i) = shown {
-            let s = &run.party[i].stats;
-            let line1 = format!(
-                "{}  HP {}  ATK {}  DEF {}",
-                run.party[i].name, s.hp, s.attack, s.defense
-            );
-            let line2 = format!(
-                "attacks every {} turn(s) from turn {}, skill every {} attacks",
-                s.interval, s.start_turn, s.skill_every
-            );
-            draw_text(&line1, 40.0, 535.0, 22.0, WHITE);
-            draw_text(&line2, 40.0, 560.0, 20.0, LIGHTGRAY);
+            let sprite = &run.party[i];
+            let s = &sprite.stats;
+            let lines = [
+                format!(
+                    "{}　HP {}　攻擊 {}　防禦 {}",
+                    sprite.name, s.hp, s.attack, s.defense
+                ),
+                format!("每 {} 回合攻擊，第 {} 回合開始", s.interval, s.start_turn),
+                format!(
+                    "技能「{}」：每 {} 次攻擊一次",
+                    sprite.skill.name, s.skill_every
+                ),
+            ];
+            for (n, line) in lines.iter().enumerate() {
+                let color = if n == 0 { WHITE } else { LIGHTGRAY };
+                text::draw(line, 40.0, 528.0 + n as f32 * 25.0, 24.0, color);
+            }
         }
     }
 }

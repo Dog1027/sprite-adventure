@@ -8,6 +8,7 @@
 src/
 ├── main.rs            入口：建立視窗，每幀呼叫 run::Game
 ├── rng.rs             共用亂數（同種子可重現）
+├── text.rs            共用文字繪製（中文字型），所有畫面都用它畫字
 ├── sprite/            精靈
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
 │   ├── skill.rs       技能資料：Skill、Range（範圍）
@@ -26,6 +27,9 @@ src/
     ├── map_view.rs    地圖畫面
     ├── placement.rs   陣型選擇與擺位畫面
     └── ui.rs          按鈕等簡單介面元件
+
+assets/
+└── fonts/             Cubic_11.ttf（中文點陣字型，執行時載入）與授權 OFL.txt
 
 data/
 └── species.toml       精靈種類的能力值、節奏數值、技能、捕捉率（編譯時嵌入程式）

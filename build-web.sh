@@ -9,6 +9,7 @@ cargo build --release --target wasm32-unknown-unknown
 
 rm -rf dist && mkdir -p dist
 cp web/index.html web/mq_js_bundle.js dist/
+cp -r assets dist/
 cp target/wasm32-unknown-unknown/release/sprite.wasm dist/
 
 if command -v wasm-opt >/dev/null; then

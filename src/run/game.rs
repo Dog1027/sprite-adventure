@@ -5,6 +5,7 @@ use super::placement::PlacementScreen;
 use super::{Run, map_view, ui};
 use crate::battle::Outcome;
 use crate::battle::view::BattleScreen;
+use crate::text;
 use macroquad::prelude::*;
 
 enum Scene {
@@ -45,7 +46,7 @@ impl Game {
                 screen.update(dt);
                 screen.draw();
                 screen.battle.outcome.and_then(|outcome| {
-                    draw_text("Click to continue", 300.0, 560.0, 26.0, LIGHTGRAY);
+                    text::centered("點擊繼續", vec2(400.0, 550.0), 24.0, LIGHTGRAY);
                     ui::clicked().then(|| match outcome {
                         Outcome::Lose => Scene::GameOver,
                         Outcome::Win if self.run.current_kind() == Some(NodeKind::Boss) => {
@@ -55,32 +56,22 @@ impl Game {
                     })
                 })
             }
-            Scene::Notice(text) => {
-                ui::centered_text(text, center, 36.0, WHITE);
-                ui::centered_text(
-                    "(not implemented yet)",
-                    center + vec2(0.0, 40.0),
-                    24.0,
-                    GRAY,
-                );
-                ui::centered_text(
-                    "Click to continue",
-                    center + vec2(0.0, 120.0),
-                    24.0,
-                    LIGHTGRAY,
-                );
+            Scene::Notice(title) => {
+                text::centered(title, center, 36.0, WHITE);
+                text::centered("（尚未實作）", center + vec2(0.0, 40.0), 24.0, GRAY);
+                text::centered("點擊繼續", center + vec2(0.0, 120.0), 24.0, LIGHTGRAY);
                 ui::clicked().then_some(Scene::Map)
             }
             Scene::GameOver | Scene::Cleared => {
-                let (text, color) = match self.scene {
-                    Scene::GameOver => ("Game Over", RED),
-                    _ => ("Floor cleared!", GREEN),
+                let (title, color) = match self.scene {
+                    Scene::GameOver => ("冒險失敗", RED),
+                    _ => ("過關！", GREEN),
                 };
-                ui::centered_text(text, center, 60.0, color);
-                ui::centered_text(
-                    "Click to start a new run",
+                text::centered(title, center, 48.0, color);
+                text::centered(
+                    "點擊開始新的冒險",
                     center + vec2(0.0, 80.0),
-                    26.0,
+                    24.0,
                     LIGHTGRAY,
                 );
                 if ui::clicked() {
@@ -104,9 +95,9 @@ impl Game {
                 let enemies = self.run.encounter(kind);
                 Scene::Placement(PlacementScreen::new(&self.run, enemies))
             }
-            NodeKind::Shop => Scene::Notice("Shop"),
-            NodeKind::Rest => Scene::Notice("Rest"),
-            NodeKind::Event => Scene::Notice("Event"),
+            NodeKind::Shop => Scene::Notice("商店"),
+            NodeKind::Rest => Scene::Notice("休息"),
+            NodeKind::Event => Scene::Notice("事件"),
         }
     }
 }
