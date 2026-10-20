@@ -29,6 +29,7 @@ src/
     ├── placement.rs   陣型選擇與擺位畫面
     ├── catch_view.rs  捕捉畫面
     ├── shop_view.rs   商店畫面
+    ├── rest_view.rs   休息畫面（強化精靈）
     └── ui.rs          按鈕等簡單介面元件
 
 assets/
@@ -56,7 +57,7 @@ main ──→ run ──→ battle ──→ sprite
 |---|---|---|
 | 精靈 `sprite/` | 能力值、精靈資料、技能資料、成長、捕捉機率 | 道具對捕捉率的影響、平衡數值 |
 | 戰鬥 `battle/` | 棋盤、回合節奏、目標、傷害、技能效果與治療、結算、陣型、擺位預覽、戰鬥畫面 | 各陣型的實際效果、屬性 |
-| 流程 `run/` | 一局的狀態、分支地圖、各種節點、畫面切換、擺位畫面、捕捉節點、商店（捕捉球）、金幣與戰鬥獎勵 | 休息畫面（用 `enhance`）、事件、捕捉機率與道具（用 `catch_rate`）、其他商店道具、陣型解鎖、多層 |
+| 流程 `run/` | 一局的狀態、分支地圖、各種節點、畫面切換、擺位畫面、捕捉節點、商店（捕捉球）、金幣與戰鬥獎勵、休息畫面 | 事件、捕捉機率與道具（用 `catch_rate`）、其他商店道具、陣型解鎖、多層 |
 
 陣型的「定義與加成」屬於戰鬥；「選陣型、擺精靈的畫面」屬於流程，結果以 `Unit`（精靈＋位置）交給戰鬥。
 
@@ -68,7 +69,7 @@ main ──→ run ──→ battle ──→ sprite
 |---|---|---|
 | `Stats`、`Sprite` | `sprite/mod.rs` | 精靈 → 戰鬥、流程 |
 | `Skill`、`Range` | `sprite/skill.rs` | 精靈 → 戰鬥（執行技能效果） |
-| `Boost`、`Sprite::enhance` | `sprite/growth.rs` | 流程的休息畫面 |
+| `Boost`、`Sprite::enhance`、`enhance_amount` | `sprite/growth.rs` | 流程的休息畫面 |
 | `species::create`、`starter`、`catch_rate` | `sprite/species.rs` | 流程：依代號建立精靈、開局精靈、捕捉率 |
 | `generate::catch_offers`、`enemy` | `sprite/generate.rs` | 流程：捕捉節點與敵方的精靈 |
 | `Unit::new(&Sprite, Side, Pos)` | `battle/mod.rs` | 把精靈放到某一格（不含陣型加成） |
