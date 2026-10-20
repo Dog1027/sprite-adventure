@@ -2,7 +2,13 @@
 //!
 //! 流程決定下一場戰鬥的陣容與位置，交給戰鬥模組執行，再依 `Outcome` 決定接下來的發展。
 
+mod game;
 pub mod map;
+mod map_view;
+mod placement;
+mod ui;
+
+pub use game::Game;
 
 use crate::battle::formation::{self, Formation};
 use crate::battle::{Battle, Side, Unit};
@@ -21,8 +27,8 @@ pub struct Run {
     /// 已解鎖的陣型
     pub formations: Vec<Formation>,
     pub map: Map,
-    /// 目前所在的節點；還沒出發時為 `None`
-    pub current: Option<usize>,
+    /// 走過的節點，最後一個是目前所在的節點
+    pub path: Vec<usize>,
     rng: Rng,
 }
 
@@ -34,14 +40,14 @@ impl Run {
             // 暫定：先開放全部範例陣型，之後改為開局只有基本陣型
             formations: formation::samples(),
             map: Map::generate(&mut rng),
-            current: None,
+            path: Vec::new(),
             rng,
         }
     }
 
     /// 下一步可以走的節點
     pub fn choices(&self) -> Vec<usize> {
-        match self.current {
+        match self.current() {
             None => self.map.stages[0].clone(),
             Some(id) => self.map.nodes[id].next.clone(),
         }
@@ -49,11 +55,15 @@ impl Run {
 
     pub fn enter(&mut self, node: usize) {
         assert!(self.choices().contains(&node), "節點 {node} 不能走");
-        self.current = Some(node);
+        self.path.push(node);
+    }
+
+    pub fn current(&self) -> Option<usize> {
+        self.path.last().copied()
     }
 
     pub fn current_kind(&self) -> Option<NodeKind> {
-        self.current.map(|id| self.map.nodes[id].kind)
+        self.current().map(|id| self.map.nodes[id].kind)
     }
 
     /// 產生這個節點的敵方隊伍（含陣型與位置），戰前就給玩家看
@@ -86,16 +96,6 @@ impl Run {
         allies.extend(enemies);
         let seed = self.rng.below(usize::MAX) as u64;
         Battle::new(allies, seed)
-    }
-
-    /// 暫時用來直接開戰：我方以第一個陣型擺上全部隊伍，打一場野生戰鬥
-    pub fn next_battle(&mut self) -> Battle {
-        let party: Vec<Option<&Sprite>> = self.party.iter().map(Some).collect();
-        let allies = self.formations[0]
-            .place(&party, Side::Ally)
-            .expect("隊伍至少 3 隻");
-        let enemies = self.encounter(NodeKind::Wild);
-        self.start_battle(allies, enemies)
     }
 }
 

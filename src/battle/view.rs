@@ -63,6 +63,8 @@ impl BattleScreen {
             draw_unit(u);
         }
 
+        // 同一回合被打多次時合計傷害，避免數字重疊
+        let mut totals: Vec<(usize, u32, bool)> = Vec::new();
         for e in &self.events {
             if let Event::Attack {
                 target,
@@ -71,14 +73,23 @@ impl BattleScreen {
                 ..
             } = *e
             {
-                let o = cell_origin(b.units[target].side, b.units[target].pos);
-                let label = if skill {
-                    format!("-{damage}!")
-                } else {
-                    format!("-{damage}")
-                };
-                draw_text(&label, o.x + CELL - 34.0, o.y + 22.0, 22.0, RED);
+                match totals.iter_mut().find(|t| t.0 == target) {
+                    Some(t) => {
+                        t.1 += damage;
+                        t.2 |= skill;
+                    }
+                    None => totals.push((target, damage, skill)),
+                }
             }
+        }
+        for (target, damage, skill) in totals {
+            let o = cell_origin(b.units[target].side, b.units[target].pos);
+            let label = if skill {
+                format!("-{damage}!")
+            } else {
+                format!("-{damage}")
+            };
+            draw_text(&label, o.x + CELL - 38.0, o.y + 22.0, 22.0, RED);
         }
     }
 }
@@ -149,16 +160,26 @@ pub fn draw_link(from: &Unit, to: &Unit, thickness: f32, color: Color) {
     draw_line(a.x, a.y, b.x, b.y, thickness, color);
 }
 
-/// 擺位預覽線：標出每隻我方精靈的第一個攻擊目標，平手的候選以淡色表示
+/// 擺位預覽線：標出每隻我方精靈的第一個攻擊目標（畫在精靈上方），平手的候選以淡色表示
 pub fn draw_preview(units: &[Unit]) {
     for (attacker, targets) in super::preview(units) {
-        let color = if targets.len() == 1 {
-            Color::new(1.0, 0.8, 0.2, 0.9)
-        } else {
-            Color::new(1.0, 0.8, 0.2, 0.4)
-        };
-        for t in targets {
-            draw_link(&units[attacker], &units[t], 2.0, color);
+        let alpha = if targets.len() == 1 { 0.9 } else { 0.45 };
+        for &t in &targets {
+            draw_link(
+                &units[attacker],
+                &units[t],
+                2.0,
+                Color::new(1.0, 0.8, 0.2, alpha),
+            );
         }
+        let names: Vec<&str> = targets.iter().map(|&t| units[t].name.as_str()).collect();
+        let o = cell_origin(units[attacker].side, units[attacker].pos);
+        draw_text(
+            format!("> {}", names.join("/")),
+            o.x + 12.0,
+            o.y + 52.0,
+            18.0,
+            BLACK,
+        );
     }
 }

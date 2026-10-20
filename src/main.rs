@@ -3,9 +3,8 @@ mod rng;
 mod run;
 mod sprite;
 
-use battle::view::BattleScreen;
 use macroquad::prelude::*;
-use run::Run;
+use run::Game;
 
 fn window_conf() -> Conf {
     Conf {
@@ -19,19 +18,11 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut run = Run::new(1);
-    let mut screen = BattleScreen::new(run.next_battle());
+    let mut game = Game::new(1);
 
     loop {
-        if is_key_pressed(KeyCode::Space) {
-            screen = BattleScreen::new(run.next_battle());
-        }
-        screen.update(get_frame_time());
-
         clear_background(Color::new(0.15, 0.15, 0.18, 1.0));
-        screen.draw();
-        draw_text("Space: restart", 40.0, 100.0, 24.0, LIGHTGRAY);
-
+        game.frame(get_frame_time());
         next_frame().await;
     }
 }
