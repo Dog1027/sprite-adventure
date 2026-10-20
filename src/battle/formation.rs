@@ -9,7 +9,6 @@ pub const MIN_UNITS: usize = 1;
 pub const MIN_SLOTS: usize = 3;
 pub const MAX_SLOTS: usize = 6;
 
-#[allow(dead_code)] // 各陣型的具體效果尚未決定
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BonusTarget {
     /// 全隊加成
@@ -18,12 +17,33 @@ pub enum BonusTarget {
     Slot(usize),
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BonusStat {
     Hp,
     Attack,
     Defense,
+}
+
+impl BonusStat {
+    pub const ALL: [BonusStat; 3] = [BonusStat::Hp, BonusStat::Attack, BonusStat::Defense];
+
+    /// 格子上顯示用的短名稱
+    pub fn short_label(self) -> &'static str {
+        match self {
+            BonusStat::Hp => "HP",
+            BonusStat::Attack => "攻",
+            BonusStat::Defense => "防",
+        }
+    }
+}
+
+/// 格子加成的簡短說明，例如「HP+20 攻+20」；沒有加成時為空字串
+pub fn bonus_label(percents: &[(BonusStat, u32)]) -> String {
+    percents
+        .iter()
+        .map(|(stat, p)| format!("{}+{p}", stat.short_label()))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// 陣型加成，例如全員防禦 +15%：`Bonus { target: All, stat: Defense, percent: 15 }`
@@ -81,6 +101,25 @@ impl Formation {
         }
     }
 
+    /// 第 i 格的加成：全隊加成與格子加成**相加**（攻擊 +10% 與 +20% 合計 +30%），
+    /// 依 HP、攻擊、防禦的順序，省略沒有加成的項目
+    pub fn slot_percents(&self, i: usize) -> Vec<(BonusStat, u32)> {
+        BonusStat::ALL
+            .into_iter()
+            .map(|stat| {
+                let total = self
+                    .bonuses
+                    .iter()
+                    .filter(|b| b.stat == stat)
+                    .filter(|b| b.target == BonusTarget::All || b.target == BonusTarget::Slot(i))
+                    .map(|b| b.percent)
+                    .sum();
+                (stat, total)
+            })
+            .filter(|&(_, total)| total > 0)
+            .collect()
+    }
+
     /// 把精靈擺到陣型的格子上。`placement[i]` 是放在第 i 格的精靈（`None` 為空格）。
     /// 陣型加成在這裡套用到 `Unit` 的能力值。
     pub fn place(
@@ -101,10 +140,8 @@ impl Formation {
             .filter_map(|(i, s)| s.map(|s| (i, s)))
             .map(|(i, sprite)| {
                 let mut unit = Unit::new(sprite, side, self.slots[i]);
-                for b in &self.bonuses {
-                    if b.target == BonusTarget::All || b.target == BonusTarget::Slot(i) {
-                        apply(&mut unit, b);
-                    }
+                for (stat, percent) in self.slot_percents(i) {
+                    apply(&mut unit, stat, percent);
                 }
                 unit
             })
@@ -112,10 +149,11 @@ impl Formation {
     }
 }
 
-fn apply(unit: &mut Unit, bonus: &Bonus) {
-    let scale = |v: u32| ((v as u64 * (100 + bonus.percent as u64) + 50) / 100) as u32;
+/// 把一項能力值提升 percent%，四捨五入
+fn apply(unit: &mut Unit, stat: BonusStat, percent: u32) {
+    let scale = |v: u32| ((v as u64 * (100 + percent as u64) + 50) / 100) as u32;
     let s = &mut unit.stats;
-    match bonus.stat {
+    match stat {
         BonusStat::Hp => {
             s.hp = scale(s.hp);
             unit.hp = s.hp;
@@ -133,12 +171,52 @@ pub enum PlaceError {
     TooManySlots,
 }
 
-/// 範例陣型（形狀取自 DESIGN.md，名稱僅為示意，效果尚未決定）。之後改讀資料檔。
+fn all(stat: BonusStat, percent: u32) -> Bonus {
+    Bonus {
+        target: BonusTarget::All,
+        stat,
+        percent,
+    }
+}
+
+fn slot(i: usize, stat: BonusStat, percent: u32) -> Bonus {
+    Bonus {
+        target: BonusTarget::Slot(i),
+        stat,
+        percent,
+    }
+}
+
+/// 第一版的陣型（形狀與加成見 DESIGN.md「陣型」，數值暫定）。之後改讀資料檔。
+/// 格子編號依 `from_rows` 的順序：由上到下、每列由後到前。
 pub fn samples() -> Vec<Formation> {
+    use BonusStat::*;
     vec![
-        Formation::from_rows("鋒矢陣", ["..X.", ".XXX", "..X."], vec![]),
-        Formation::from_rows("方圓陣", ["..XX", ".X.X", "..XX"], vec![]),
-        Formation::from_rows("雁行陣", ["X...", ".X..", "..X."], vec![]),
+        // 進攻：全隊攻擊，再依位置加成。格子：0 上翼、1 尾、2 心、3 尖、4 下翼
+        Formation::from_rows(
+            "鋒矢陣",
+            ["..X.", ".XXX", "..X."],
+            vec![
+                all(Attack, 10),
+                slot(3, Attack, 20),
+                slot(0, Defense, 15),
+                slot(4, Defense, 15),
+                slot(1, Hp, 15),
+            ],
+        ),
+        // 防守：只有全隊加成，上場最多
+        Formation::from_rows("方圓陣", ["..XX", ".X.X", "..XX"], vec![all(Defense, 15)]),
+        // 人少但每格都強。格子：0 後、1 中、2 前
+        Formation::from_rows(
+            "雁行陣",
+            ["X...", ".X..", "..X."],
+            vec![
+                slot(0, Attack, 40),
+                slot(1, Hp, 20),
+                slot(1, Attack, 20),
+                slot(2, Defense, 40),
+            ],
+        ),
     ]
 }
 
@@ -216,5 +294,50 @@ mod tests {
         assert_eq!(units[0].stats.attack, 26);
         assert_eq!(units[1].stats.attack, 20);
         assert!(units.iter().all(|u| u.stats.defense == 12)); // 11.5 四捨五入
+    }
+
+    #[test]
+    fn bonuses_add_up_instead_of_multiplying() {
+        let f = Formation::from_rows(
+            "t",
+            ["...X", "...X", "...X"],
+            vec![all(BonusStat::Attack, 10), slot(0, BonusStat::Attack, 20)],
+        );
+        let s = sprite();
+        let units = f.place(&[Some(&s)], Side::Ally).unwrap();
+        // 20 × 1.3 = 26（相乘的話是 20 × 1.1 × 1.2 = 26.4）
+        assert_eq!(units[0].stats.attack, 26);
+        assert_eq!(f.slot_percents(0), vec![(BonusStat::Attack, 30)]);
+        assert_eq!(f.slot_percents(1), vec![(BonusStat::Attack, 10)]);
+    }
+
+    #[test]
+    fn sample_bonuses_match_design() {
+        let f = samples();
+        let labels = |f: &Formation| -> Vec<String> {
+            (0..f.slots.len())
+                .map(|i| bonus_label(&f.slot_percents(i)))
+                .collect()
+        };
+        assert_eq!(
+            labels(&f[0]),
+            vec![
+                "攻+10 防+15",
+                "HP+15 攻+10",
+                "攻+10",
+                "攻+30",
+                "攻+10 防+15"
+            ]
+        );
+        assert!(labels(&f[1]).iter().all(|l| l == "防+15"));
+        assert_eq!(labels(&f[2]), vec!["攻+40", "HP+20 攻+20", "防+40"]);
+    }
+
+    #[test]
+    fn hp_bonus_also_fills_current_hp() {
+        let f = &samples()[2];
+        let s = sprite();
+        let units = f.place(&[None, Some(&s)], Side::Ally).unwrap();
+        assert_eq!((units[0].stats.hp, units[0].hp), (120, 120));
     }
 }

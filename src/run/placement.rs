@@ -2,7 +2,7 @@
 
 use super::Run;
 use super::ui;
-use crate::battle::formation::MIN_UNITS;
+use crate::battle::formation::{MIN_UNITS, bonus_label};
 use crate::battle::view::{self, CELL};
 use crate::battle::{Side, Unit};
 use crate::sprite::Sprite;
@@ -103,6 +103,15 @@ impl PlacementScreen {
             view::draw_unit(u);
         }
         view::draw_preview(&units);
+
+        // 每一格的陣型加成，畫在格子最下方
+        for (i, &pos) in formation.slots.iter().enumerate() {
+            let label = bonus_label(&formation.slot_percents(i));
+            if !label.is_empty() {
+                let o = view::cell_origin(Side::Ally, pos);
+                text::centered(&label, vec2(o.x + CELL / 2.0, o.y + CELL - 6.0), 12.0, GOLD);
+            }
+        }
 
         // 點格子：有選中的精靈就放進去，否則拿起格子裡的精靈
         if ui::clicked()
