@@ -25,8 +25,8 @@ const ENEMY_POOL: [&str; 3] = ["E1", "E2", "E3"];
 const CATCH_POOL: [&str; 7] = ["A1", "A2", "A3", "A4", "E1", "E2", "E3"];
 /// 捕捉節點一次出現幾隻（選一隻抓）；暫定
 pub const CATCH_OFFERS: usize = 3;
-/// 隊伍上限，和陣型最多格數相同；暫定
-pub const PARTY_MAX: usize = formation::MAX_SLOTS;
+/// 開局的捕捉球數量
+const STARTING_BALLS: u32 = 3;
 
 /// 敵方上場隻數：野生從 1 隻開始隨階段增加；暫定
 fn enemy_count(kind: NodeKind, stage: usize) -> usize {
@@ -40,7 +40,10 @@ fn enemy_count(kind: NodeKind, stage: usize) -> usize {
 
 /// 一局冒險的狀態
 pub struct Run {
+    /// 隊伍沒有上限
     pub party: Vec<Sprite>,
+    /// 捕捉球，每次捕捉用掉一個；目前不影響捕捉率
+    pub balls: u32,
     /// 已解鎖的陣型
     pub formations: Vec<Formation>,
     pub map: Map,
@@ -54,6 +57,7 @@ impl Run {
         let mut rng = Rng::new(seed);
         Self {
             party: vec![species::create(STARTER)],
+            balls: STARTING_BALLS,
             // 暫定：先開放全部範例陣型，之後改為開局只有基本陣型
             formations: formation::samples(),
             map: Map::generate(&mut rng),
@@ -113,11 +117,12 @@ impl Run {
             .collect()
     }
 
-    /// 捕捉：目前必定成功（見 DESIGN.md「捕捉」）。隊伍已滿時回傳 false。
+    /// 捕捉：用掉一個捕捉球，目前必定成功（見 DESIGN.md「捕捉」）。沒有球時回傳 false。
     pub fn catch(&mut self, name: &str) -> bool {
-        if self.party.len() >= PARTY_MAX {
+        if self.balls == 0 {
             return false;
         }
+        self.balls -= 1;
         self.party.push(species::create(name));
         true
     }
@@ -177,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn catch_always_succeeds_until_party_full() {
+    fn each_catch_uses_a_ball() {
         let mut run = Run::new(2);
         let offers = run.catch_offers();
         assert_eq!(offers.len(), CATCH_OFFERS);
@@ -186,11 +191,23 @@ mod tests {
                 .iter()
                 .all(|o| offers.iter().filter(|x| *x == o).count() == 1)
         );
-        for _ in 1..PARTY_MAX {
+        assert_eq!(run.balls, STARTING_BALLS);
+        for _ in 0..STARTING_BALLS {
             assert!(run.catch(offers[0]));
         }
-        assert_eq!(run.party.len(), PARTY_MAX);
+        assert_eq!(run.party.len(), 1 + STARTING_BALLS as usize);
+        assert_eq!(run.balls, 0);
         assert!(!run.catch(offers[0]));
-        assert_eq!(run.party.len(), PARTY_MAX);
+        assert_eq!(run.party.len(), 1 + STARTING_BALLS as usize);
+    }
+
+    #[test]
+    fn party_has_no_limit() {
+        let mut run = Run::new(2);
+        run.balls = 20;
+        for _ in 0..20 {
+            assert!(run.catch("E1"));
+        }
+        assert_eq!(run.party.len(), 21);
     }
 }

@@ -10,8 +10,22 @@ use crate::text;
 use macroquad::prelude::*;
 
 const CARD_TOP: f32 = 440.0;
-const CARD_W: f32 = 90.0;
+const CARD_W: f32 = 80.0;
 const CARD_H: f32 = 60.0;
+const CARD_GAP: f32 = 8.0;
+/// 隊伍沒有上限，一頁顯示幾隻，其餘用左右箭頭翻頁
+const CARDS_PER_PAGE: usize = 5;
+const CARDS_LEFT: f32 = 76.0;
+
+/// 這一頁第 n 張卡片的位置
+fn card_rect(n: usize) -> Rect {
+    Rect::new(
+        CARDS_LEFT + n as f32 * (CARD_W + CARD_GAP),
+        CARD_TOP,
+        CARD_W,
+        CARD_H,
+    )
+}
 
 pub struct PlacementScreen {
     pub enemies: Vec<Unit>,
@@ -20,6 +34,8 @@ pub struct PlacementScreen {
     slots: Vec<Option<usize>>,
     /// 選中的隊伍精靈，下一次點格子時放進去
     selected: Option<usize>,
+    /// 隊伍卡片目前在第幾頁
+    page: usize,
 }
 
 impl PlacementScreen {
@@ -29,6 +45,7 @@ impl PlacementScreen {
             formation: 0,
             slots: Vec::new(),
             selected: None,
+            page: 0,
         };
         screen.auto_fill(run);
         screen
@@ -129,14 +146,43 @@ impl PlacementScreen {
 
     fn draw_party(&mut self, run: &Run) {
         text::draw(
-            "隊伍（點精靈，再點綠色格子）",
+            &format!("隊伍 {} 隻（點精靈，再點綠色格子）", run.party.len()),
             40.0,
             CARD_TOP - 10.0,
             24.0,
             LIGHTGRAY,
         );
-        for (i, sprite) in run.party.iter().enumerate() {
-            let rect = Rect::new(40.0 + i as f32 * (CARD_W + 10.0), CARD_TOP, CARD_W, CARD_H);
+
+        let pages = run.party.len().div_ceil(CARDS_PER_PAGE).max(1);
+        self.page = self.page.min(pages - 1);
+        let arrow_y = CARD_TOP + (CARD_H - 40.0) / 2.0;
+        if ui::button(
+            Rect::new(40.0, arrow_y, 28.0, 40.0),
+            "<",
+            self.page > 0,
+            false,
+        ) {
+            self.page -= 1;
+        }
+        let right = CARDS_LEFT + CARDS_PER_PAGE as f32 * (CARD_W + CARD_GAP);
+        if ui::button(
+            Rect::new(right, arrow_y, 28.0, 40.0),
+            ">",
+            self.page + 1 < pages,
+            false,
+        ) {
+            self.page += 1;
+        }
+
+        let first = self.page * CARDS_PER_PAGE;
+        let on_page = first..run.party.len().min(first + CARDS_PER_PAGE);
+        let mut hovered = None;
+        for i in on_page {
+            let sprite = &run.party[i];
+            let rect = card_rect(i - first);
+            if rect.contains(ui::mouse()) {
+                hovered = Some(i);
+            }
             let placed = self.slots.contains(&Some(i));
             let label = if placed {
                 format!("{} *", sprite.name)
@@ -152,12 +198,7 @@ impl PlacementScreen {
             }
         }
 
-        let shown = self.selected.or_else(|| {
-            run.party.iter().enumerate().position(|(i, _)| {
-                let r = Rect::new(40.0 + i as f32 * (CARD_W + 10.0), CARD_TOP, CARD_W, CARD_H);
-                r.contains(ui::mouse())
-            })
-        });
+        let shown = self.selected.or(hovered);
         if let Some(i) = shown {
             let sprite = &run.party[i];
             let s = &sprite.stats;

@@ -1,6 +1,6 @@
 //! 捕捉畫面：出現幾隻野生精靈，顯示能力值與捕捉率，選一隻加入隊伍或略過。
 
-use super::{PARTY_MAX, Run, ui};
+use super::{Run, ui};
 use crate::sprite::skill::Range;
 use crate::sprite::species;
 use crate::text;
@@ -31,15 +31,22 @@ fn range_label(range: Range) -> &'static str {
 pub fn frame(run: &Run, offers: &[&'static str]) -> Option<Choice> {
     text::draw("捕捉", 40.0, 50.0, 36.0, WHITE);
     text::draw(
-        "選一隻加入隊伍（目前必定成功）",
+        "用一個捕捉球，選一隻加入隊伍（目前必定成功）",
         40.0,
         90.0,
         24.0,
         LIGHTGRAY,
     );
-    let full = run.party.len() >= PARTY_MAX;
-    let party = format!("隊伍 {}/{PARTY_MAX}", run.party.len());
-    text::draw(&party, 640.0, 50.0, 24.0, if full { ORANGE } else { WHITE });
+    let no_balls = run.balls == 0;
+    let status = format!("捕捉球 {}　隊伍 {} 隻", run.balls, run.party.len());
+    let w = text::measure(&status, 24.0).width;
+    text::draw(
+        &status,
+        760.0 - w,
+        50.0,
+        24.0,
+        if no_balls { ORANGE } else { WHITE },
+    );
 
     let mut choice = None;
     for (i, &name) in offers.iter().enumerate() {
@@ -79,13 +86,13 @@ pub fn frame(run: &Run, offers: &[&'static str]) -> Option<Choice> {
         text::draw(&rate, x + 16.0, CARD_TOP + 300.0, 24.0, GOLD);
 
         let button = Rect::new(x + 16.0, CARD_TOP + CARD_H - 56.0, CARD_W - 32.0, 44.0);
-        if ui::button(button, "捕捉", !full, false) {
+        if ui::button(button, "捕捉", !no_balls, false) {
             choice = Some(Choice::Catch(name));
         }
     }
 
-    if full {
-        text::draw("隊伍已滿，無法再捕捉", 40.0, 540.0, 24.0, ORANGE);
+    if no_balls {
+        text::draw("沒有捕捉球了", 40.0, 540.0, 24.0, ORANGE);
     }
     if ui::button(Rect::new(600.0, 520.0, 160.0, 50.0), "略過", true, false) {
         choice = Some(Choice::Skip);
