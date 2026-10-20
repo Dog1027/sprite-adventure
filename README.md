@@ -8,9 +8,15 @@ Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/
 
 ## 建置與執行
 
-### 原生版
+常用指令都寫在 `justfile`，需要先安裝 [just](https://github.com/casey/just)。執行 `just` 會列出全部指令。
 
-### 網頁版（WebAssembly）
+| 指令 | 用途 |
+|---|---|
+| `just run` | 執行原生版 |
+| `just test` | 執行單元測試 |
+| `just check` | 提交前執行：排版、clippy、測試 |
+| `just web` | 建置網頁版到 `dist/` |
+| `just serve` | 建置網頁版並在 http://localhost:8000 開啟 |
 
 ## 操作方式
 
@@ -21,7 +27,7 @@ Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/
 3. **戰鬥**：自動進行，結束後點一下繼續。打倒頭目即過關，戰敗則重新開始
 4. **捕捉**：開局只有 1 隻精靈和 3 個捕捉球；在捕捉節點用一個球選一隻加入隊伍（目前必定成功）。隊伍超過 5 隻時，擺位畫面用 `<` `>` 翻頁
 
-打贏戰鬥得到金幣，有機會掉捕捉球；商店可以用金幣買捕捉球。休息、事件尚未實作。
+打贏戰鬥得到金幣，有機會掉捕捉球；商店可以用金幣買捕捉球。休息節點可以選一隻精靈強化 HP、攻擊或防禦。事件尚未實作。
 
 ## 專案結構
 
@@ -31,11 +37,11 @@ Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/
 
 - 開工前先 `git fetch`，完成一個功能就 commit 並 push
 - 各模組由不同人負責；修改模組之間的介面前先討論（見 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)）
-- 提交前執行 `cargo test` 與 `cargo clippy`
+- 提交前執行 `just check`（排版、clippy、測試）
 
 ## 已知問題
 
-- 原生版要在專案根目錄執行（`cargo run`），否則找不到 `assets/fonts/` 的字型，中文會無法顯示
+- 原生版要在專案根目錄執行，否則找不到 `assets/fonts/` 的字型，中文會無法顯示（用 `just run` 就不會有這個問題）
 
 ## 授權與素材
 
