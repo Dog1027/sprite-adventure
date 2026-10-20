@@ -1,14 +1,14 @@
-//! 精靈：能力值、精靈資料、之後的成長與捕捉。規則見 docs/DESIGN.md「精靈」「捕捉」。
+//! 精靈：能力值、技能、精靈資料、之後的成長與捕捉。規則見 docs/DESIGN.md「精靈」「技能」「捕捉」。
 //!
-//! 這個模組不依賴其他遊戲模組；戰鬥與流程都透過 `Sprite` 和 `Stats` 使用它。
+//! 這個模組不依賴其他遊戲模組；戰鬥與流程都透過 `Sprite`、`Stats`、`Skill`（`skill::Range`）使用它。
 
+pub mod skill;
 pub mod species;
 
-use serde::Deserialize;
+pub use skill::Skill;
 
 /// 能力值與節奏數值，戰鬥只讀取這些值
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Stats {
     pub hp: u32,
     pub attack: u32,
@@ -26,14 +26,24 @@ pub struct Stats {
 pub struct Sprite {
     pub name: String,
     pub stats: Stats,
+    /// 每隻精靈一種技能
+    #[allow(dead_code)] // 技能效果由戰鬥模組執行，尚未實作
+    pub skill: Skill,
 }
 
 impl Sprite {
+    /// 建立精靈，技能為預設的普攻；要指定技能用 `with_skill`
     pub fn new(name: &str, stats: Stats) -> Self {
         assert!(stats.interval >= 1 && stats.start_turn >= 1 && stats.skill_every >= 1);
         Self {
             name: name.to_owned(),
             stats,
+            skill: Skill::basic(),
         }
+    }
+
+    pub fn with_skill(mut self, skill: Skill) -> Self {
+        self.skill = skill;
+        self
     }
 }

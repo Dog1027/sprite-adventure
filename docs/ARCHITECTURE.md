@@ -10,6 +10,7 @@ src/
 ├── rng.rs             共用亂數（同種子可重現）
 ├── sprite/            精靈
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
+│   ├── skill.rs       技能資料：Skill、Range（範圍）
 │   └── species.rs     讀取精靈種類資料（data/species.toml）
 ├── battle/            戰鬥
 │   ├── mod.rs         棋盤、Unit、Battle（回合進行與結算）、Event、Outcome
@@ -26,7 +27,7 @@ src/
     └── ui.rs          按鈕等簡單介面元件
 
 data/
-└── species.toml       精靈種類的能力值與節奏數值（編譯時嵌入程式）
+└── species.toml       精靈種類的能力值、節奏數值與技能（編譯時嵌入程式）
 ```
 
 ## 依賴方向
@@ -45,7 +46,7 @@ main ──→ run ──→ battle ──→ sprite
 
 | 模組 | 負責 | 之後要做 |
 |---|---|---|
-| 精靈 `sprite/` | 能力值、精靈資料、技能資料、成長、捕捉機率 | 技能定義、成長／進化、捕捉 |
+| 精靈 `sprite/` | 能力值、精靈資料、技能資料、成長、捕捉機率 | 休息強化、捕捉 |
 | 戰鬥 `battle/` | 棋盤、回合節奏、目標、傷害、結算、陣型、擺位預覽、戰鬥畫面 | 技能效果執行、治療、各陣型的實際效果 |
 | 流程 `run/` | 一局的狀態、分支地圖、各種節點、畫面切換、擺位畫面 | 商店、休息、事件、捕捉流程、陣型解鎖、多層 |
 
@@ -58,6 +59,7 @@ main ──→ run ──→ battle ──→ sprite
 | 介面 | 位置 | 用途 |
 |---|---|---|
 | `Stats`、`Sprite` | `sprite/mod.rs` | 精靈 → 戰鬥、流程 |
+| `Skill`、`Range` | `sprite/skill.rs` | 精靈 → 戰鬥（執行技能效果） |
 | `species::create` | `sprite/species.rs` | 流程用來建立精靈 |
 | `Unit::new(&Sprite, Side, Pos)` | `battle/mod.rs` | 把精靈放到某一格（不含陣型加成） |
 | `Formation`、`Formation::place`、`formation::samples` | `battle/formation.rs` | 流程依陣型擺位，取得含陣型加成的 `Unit` |
