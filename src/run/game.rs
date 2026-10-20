@@ -2,7 +2,7 @@
 
 use super::map::NodeKind;
 use super::placement::PlacementScreen;
-use super::{Run, map_view, ui};
+use super::{Run, catch_view, map_view, ui};
 use crate::battle::Outcome;
 use crate::battle::view::BattleScreen;
 use crate::text;
@@ -12,6 +12,8 @@ enum Scene {
     Map,
     Placement(PlacementScreen),
     Battle(BattleScreen),
+    /// 捕捉節點出現的精靈
+    Catch(Vec<&'static str>),
     /// 尚未實作的節點
     Notice(&'static str),
     GameOver,
@@ -56,6 +58,12 @@ impl Game {
                     })
                 })
             }
+            Scene::Catch(offers) => catch_view::frame(&self.run, offers).map(|choice| {
+                if let catch_view::Choice::Catch(name) = choice {
+                    self.run.catch(name);
+                }
+                Scene::Map
+            }),
             Scene::Notice(title) => {
                 text::centered(title, center, 36.0, WHITE);
                 text::centered("（尚未實作）", center + vec2(0.0, 40.0), 24.0, GRAY);
@@ -95,6 +103,7 @@ impl Game {
                 let enemies = self.run.encounter(kind);
                 Scene::Placement(PlacementScreen::new(&self.run, enemies))
             }
+            NodeKind::Catch => Scene::Catch(self.run.catch_offers()),
             NodeKind::Shop => Scene::Notice("商店"),
             NodeKind::Rest => Scene::Notice("休息"),
             NodeKind::Event => Scene::Notice("事件"),

@@ -26,6 +26,7 @@ fn label(kind: NodeKind) -> (&'static str, Color) {
         NodeKind::Wild => ("野", Color::new(0.5, 0.75, 0.5, 1.0)),
         NodeKind::Elite => ("菁", ORANGE),
         NodeKind::Shop => ("商", GOLD),
+        NodeKind::Catch => ("捕", PINK),
         NodeKind::Rest => ("休", SKYBLUE),
         NodeKind::Event => ("事", VIOLET),
         NodeKind::Boss => ("王", RED),
@@ -77,7 +78,7 @@ pub fn frame(run: &Run) -> Option<usize> {
     }
 
     text::draw(
-        "野 野生戰鬥　菁 菁英　商 商店　休 休息　事 事件　王 頭目",
+        "野生　菁英　捕捉　商店　休息　事件　王＝頭目",
         40.0,
         570.0,
         24.0,

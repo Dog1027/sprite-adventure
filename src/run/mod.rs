@@ -2,6 +2,7 @@
 //!
 //! 流程決定下一場戰鬥的陣容與位置，交給戰鬥模組執行，再依 `Outcome` 決定接下來的發展。
 
+mod catch_view;
 mod game;
 pub mod map;
 mod map_view;
@@ -16,12 +17,26 @@ use crate::rng::Rng;
 use crate::sprite::{Sprite, species};
 use map::{Map, NodeKind};
 
-/// 開局隊伍；暫定，之後由捕捉決定
-const STARTERS: [&str; 4] = ["A1", "A2", "A3", "A4"];
+/// 開局只有一隻精靈，之後在捕捉節點增加
+const STARTER: &str = "A1";
 /// 敵方會出現的精靈；暫定
 const ENEMY_POOL: [&str; 3] = ["E1", "E2", "E3"];
-/// 野生戰鬥的敵方隻數；暫定
-const WILD_COUNT: usize = 3;
+/// 捕捉節點會出現的精靈；暫定
+const CATCH_POOL: [&str; 7] = ["A1", "A2", "A3", "A4", "E1", "E2", "E3"];
+/// 捕捉節點一次出現幾隻（選一隻抓）；暫定
+pub const CATCH_OFFERS: usize = 3;
+/// 隊伍上限，和陣型最多格數相同；暫定
+pub const PARTY_MAX: usize = formation::MAX_SLOTS;
+
+/// 敵方上場隻數：野生從 1 隻開始隨階段增加；暫定
+fn enemy_count(kind: NodeKind, stage: usize) -> usize {
+    let wild = (1 + stage / 2).min(3);
+    match kind {
+        NodeKind::Elite => wild + 1,
+        NodeKind::Boss => 4,
+        _ => wild,
+    }
+}
 
 /// 一局冒險的狀態
 pub struct Run {
@@ -38,7 +53,7 @@ impl Run {
     pub fn new(seed: u64) -> Self {
         let mut rng = Rng::new(seed);
         Self {
-            party: STARTERS.map(species::create).to_vec(),
+            party: vec![species::create(STARTER)],
             // 暫定：先開放全部範例陣型，之後改為開局只有基本陣型
             formations: formation::samples(),
             map: Map::generate(&mut rng),
@@ -73,12 +88,8 @@ impl Run {
         let formations = formation::samples();
         let f = &formations[self.rng.below(formations.len())];
         let slots = f.slots.len();
-        // 上場隻數；暫定
-        let count = match kind {
-            NodeKind::Wild => WILD_COUNT,
-            NodeKind::Elite => slots.min(WILD_COUNT + 1 + self.rng.below(2)),
-            _ => slots,
-        };
+        let stage = self.current().map_or(0, |id| self.map.nodes[id].stage);
+        let count = enemy_count(kind, stage).min(slots);
 
         // 隨機挑格子，再隨機挑精靈
         let mut open: Vec<usize> = (0..slots).collect();
@@ -92,6 +103,23 @@ impl Run {
             .collect();
         let placement: Vec<Option<&Sprite>> = sprites.iter().map(Option::as_ref).collect();
         f.place(&placement, Side::Enemy).expect("敵方至少 1 隻")
+    }
+
+    /// 捕捉節點出現的精靈（種類名稱，不重複）
+    pub fn catch_offers(&mut self) -> Vec<&'static str> {
+        let mut pool = CATCH_POOL.to_vec();
+        (0..CATCH_OFFERS.min(pool.len()))
+            .map(|_| pool.remove(self.rng.below(pool.len())))
+            .collect()
+    }
+
+    /// 捕捉：目前必定成功（見 DESIGN.md「捕捉」）。隊伍已滿時回傳 false。
+    pub fn catch(&mut self, name: &str) -> bool {
+        if self.party.len() >= PARTY_MAX {
+            return false;
+        }
+        self.party.push(species::create(name));
+        true
     }
 
     pub fn start_battle(&mut self, mut allies: Vec<Unit>, enemies: Vec<Unit>) -> Battle {
@@ -123,14 +151,46 @@ mod tests {
     }
 
     #[test]
-    fn encounter_sizes() {
+    fn starts_with_one_sprite() {
+        assert_eq!(Run::new(1).party.len(), 1);
+    }
+
+    #[test]
+    fn enemy_count_grows_with_stage() {
+        let wild: Vec<usize> = (0..7).map(|s| enemy_count(NodeKind::Wild, s)).collect();
+        assert_eq!(wild, vec![1, 1, 2, 2, 3, 3, 3]);
+        assert_eq!(enemy_count(NodeKind::Elite, 2), 3);
+        assert_eq!(enemy_count(NodeKind::Boss, 7), 4);
+    }
+
+    #[test]
+    fn first_battle_has_one_enemy() {
         let mut run = Run::new(5);
-        for _ in 0..50 {
-            assert_eq!(run.encounter(NodeKind::Wild).len(), 3);
-            let elite = run.encounter(NodeKind::Elite).len();
-            assert!((3..=5).contains(&elite));
-            let boss = run.encounter(NodeKind::Boss);
-            assert!(boss.len() >= 3 && boss.iter().all(|u| u.side == Side::Enemy));
+        let first = run.choices()[0];
+        run.enter(first);
+        for _ in 0..20 {
+            assert_eq!(run.encounter(NodeKind::Wild).len(), 1);
         }
+        let boss = run.encounter(NodeKind::Boss);
+        assert!(!boss.is_empty() && boss.len() <= 4);
+        assert!(boss.iter().all(|u| u.side == Side::Enemy));
+    }
+
+    #[test]
+    fn catch_always_succeeds_until_party_full() {
+        let mut run = Run::new(2);
+        let offers = run.catch_offers();
+        assert_eq!(offers.len(), CATCH_OFFERS);
+        assert!(
+            offers
+                .iter()
+                .all(|o| offers.iter().filter(|x| *x == o).count() == 1)
+        );
+        for _ in 1..PARTY_MAX {
+            assert!(run.catch(offers[0]));
+        }
+        assert_eq!(run.party.len(), PARTY_MAX);
+        assert!(!run.catch(offers[0]));
+        assert_eq!(run.party.len(), PARTY_MAX);
     }
 }

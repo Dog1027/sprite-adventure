@@ -14,6 +14,7 @@ pub enum NodeKind {
     Wild,
     Elite,
     Shop,
+    Catch,
     Rest,
     Event,
     Boss,
@@ -98,16 +99,18 @@ fn scale_lane(lane: usize, from_len: usize, to_len: usize) -> usize {
 fn pick_kind(stage: usize, rng: &mut Rng) -> NodeKind {
     match stage {
         0 => NodeKind::Wild,
+        // 開局只有一隻精靈，第二個階段固定是捕捉
+        1 => NodeKind::Catch,
         s if s == STAGES - 1 => NodeKind::Boss,
         s if s == STAGES - 2 => NodeKind::Rest,
-        s => {
+        _ => {
             let roll = rng.below(100);
             match roll {
-                0..50 => NodeKind::Wild,
-                50..65 if s >= 2 => NodeKind::Elite,
-                50..65 => NodeKind::Wild,
-                65..80 => NodeKind::Event,
-                80..92 => NodeKind::Shop,
+                0..40 => NodeKind::Wild,
+                40..55 => NodeKind::Elite,
+                55..75 => NodeKind::Catch,
+                75..85 => NodeKind::Event,
+                85..93 => NodeKind::Shop,
                 _ => NodeKind::Rest,
             }
         }
@@ -153,6 +156,17 @@ mod tests {
                     assert!(incoming, "節點 {id} 走不到");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn second_stage_is_catch() {
+        for m in maps() {
+            assert!(
+                m.stages[1]
+                    .iter()
+                    .all(|&i| m.nodes[i].kind == NodeKind::Catch)
+            );
         }
     }
 
