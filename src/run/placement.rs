@@ -82,14 +82,18 @@ impl PlacementScreen {
 
         let formation = &run.formations[self.formation];
         view::draw_boards();
-        // 開放的格子與加成
+        // 開放的格子與加成（空格時加成寫在地上）
         for (i, &pos) in formation.slots.iter().enumerate() {
-            let r = view::inset(view::cell_rect(Side::Ally, pos), 3.0);
-            gfx::rounded_rect(r, 8.0, palette::OPEN_SLOT);
-            gfx::rounded_rect_lines(r, 8.0, 1.5, palette::OPEN_SLOT_BORDER);
+            view::draw_slot(
+                Side::Ally,
+                pos,
+                palette::OPEN_SLOT,
+                palette::OPEN_SLOT_BORDER,
+            );
             let label = bonus_label(&formation.slot_percents(i));
             if self.slots[i].is_none() && !label.is_empty() {
-                text::centered(&label, r.center(), 18.0, palette::HIGHLIGHT);
+                let c = view::cell_center(Side::Ally, pos);
+                text::centered(&label, c, 18.0, palette::HIGHLIGHT);
             }
         }
 
@@ -97,8 +101,9 @@ impl PlacementScreen {
         let placement = self.placement(run);
         let mut units = formation.place(&placement, Side::Ally).unwrap_or_default();
         units.extend(self.enemies.iter().cloned());
-        // 我方的格子有加成時，左下角顯示加成（取代血量數字）
-        for u in &units {
+        // 由後往前畫；我方的格子有加成時，左下角顯示加成（取代血量數字）
+        for i in view::draw_order(&units) {
+            let u = &units[i];
             let bonus = formation
                 .slots
                 .iter()
@@ -111,8 +116,8 @@ impl PlacementScreen {
         if let Some(i) = self.selected
             && let Some(slot) = self.slots.iter().position(|&s| s == Some(i))
         {
-            let r = view::inset(view::cell_rect(Side::Ally, formation.slots[slot]), 1.0);
-            gfx::rounded_rect_lines(r, 10.0, 3.0, palette::BUTTON_ACTIVE);
+            let r = view::unit_rect(Side::Ally, formation.slots[slot]);
+            gfx::rounded_rect_lines(r, 8.0, 3.0, palette::BUTTON_ACTIVE);
         }
 
         // 點格子：有選中的精靈就放進去，否則拿起格子裡的精靈
