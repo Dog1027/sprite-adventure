@@ -33,6 +33,16 @@ pub fn clicked() -> bool {
     is_mouse_button_pressed(MouseButton::Left)
 }
 
+/// 這一幀是否放開（手機上是手指離開螢幕）
+pub fn released() -> bool {
+    is_mouse_button_released(MouseButton::Left)
+}
+
+/// 是否按住中
+pub fn held() -> bool {
+    is_mouse_button_down(MouseButton::Left)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Style {
     /// 一般按鈕
@@ -45,6 +55,12 @@ pub enum Style {
 
 /// 畫一個按鈕，被點擊時回傳 true
 pub fn button(rect: Rect, label: &str, style: Style, enabled: bool) -> bool {
+    draw_button(rect, label, style, enabled);
+    enabled && rect.contains(mouse()) && clicked()
+}
+
+/// 只畫按鈕外觀，不處理點擊（點擊要自己判斷時用，例如可以拖曳的卡片）
+pub fn draw_button(rect: Rect, label: &str, style: Style, enabled: bool) {
     let inside = rect.contains(mouse());
     let held = enabled && inside && is_mouse_button_down(MouseButton::Left);
     let (fill, text_color) = match (enabled, style) {
@@ -67,7 +83,6 @@ pub fn button(rect: Rect, label: &str, style: Style, enabled: bool) -> bool {
     gfx::rounded_rect_lines(r, RADIUS, 1.0, palette::BUTTON_BORDER);
     let size = if rect.h >= 50.0 { 24.0 } else { 18.0 };
     text::centered(label, r.center(), size, text_color);
-    enabled && inside && clicked()
 }
 
 /// 卡片：有陰影的圓角面板

@@ -18,6 +18,8 @@ const CARD_W: f32 = 80.0;
 const CARD_H: f32 = 52.0;
 const CARD_GAP: f32 = 8.0;
 const ARROW_W: f32 = 32.0;
+/// 按下後移動超過這個距離才算拖曳，否則放開時當成點一下
+const DRAG_THRESHOLD: f32 = 8.0;
 /// 隊伍沒有上限，一頁顯示幾隻，其餘用左右箭頭翻頁
 const CARDS_PER_PAGE: usize = 4;
 const CARDS_LEFT: f32 = (W - CARDS_PER_PAGE as f32 * (CARD_W + CARD_GAP) + CARD_GAP) / 2.0;
@@ -32,6 +34,39 @@ fn card_rect(n: usize) -> Rect {
     )
 }
 
+/// 正在拖曳（或剛按下）的精靈
+struct Drag {
+    /// 隊伍中第幾隻
+    member: usize,
+    /// 從陣型的第幾格拿起來；`None` 表示從下方的隊伍卡片
+    from: Option<usize>,
+    start: Vec2,
+    /// 是否已經移動到算是拖曳
+    moved: bool,
+}
+
+/// 把精靈放到第 `target` 格（`None` 表示放到棋盤外）。
+/// - 目標格有別的精靈：從格子拖來的就交換位置，從隊伍拖來的就把原本的換下來
+/// - 從格子拖到棋盤外：拿下來
+fn drop_on(slots: &mut [Option<usize>], member: usize, from: Option<usize>, target: Option<usize>) {
+    let Some(target) = target else {
+        if from.is_some() {
+            for s in slots.iter_mut().filter(|s| **s == Some(member)) {
+                *s = None;
+            }
+        }
+        return;
+    };
+    let displaced = slots[target].filter(|&d| d != member);
+    for s in slots.iter_mut().filter(|s| **s == Some(member)) {
+        *s = None;
+    }
+    slots[target] = Some(member);
+    if let (Some(from), Some(other)) = (from, displaced) {
+        slots[from] = Some(other);
+    }
+}
+
 pub struct PlacementScreen {
     pub enemies: Vec<Unit>,
     formation: usize,
@@ -41,6 +76,7 @@ pub struct PlacementScreen {
     selected: Option<usize>,
     /// 隊伍卡片目前在第幾頁
     page: usize,
+    drag: Option<Drag>,
 }
 
 impl PlacementScreen {
@@ -51,6 +87,7 @@ impl PlacementScreen {
             slots: Vec::new(),
             selected: None,
             page: 0,
+            drag: None,
         };
         screen.auto_fill(run);
         screen
@@ -80,16 +117,24 @@ impl PlacementScreen {
         ui::header("布陣", Some(run));
         self.draw_tabs(run);
 
+        self.handle_input(run);
+        let dragging = self.drag.as_ref().filter(|d| d.moved);
+
         let formation = &run.formations[self.formation];
         view::draw_boards();
+        // 拖曳中的目標格
+        let target = dragging.and_then(|_| self.slot_at(run, ui::mouse()));
         // 開放的格子與加成（空格時加成寫在地上）
         for (i, &pos) in formation.slots.iter().enumerate() {
-            view::draw_slot(
-                Side::Ally,
-                pos,
-                palette::OPEN_SLOT,
-                palette::OPEN_SLOT_BORDER,
-            );
+            let (fill, border) = if target == Some(i) {
+                (
+                    gfx::with_alpha(palette::OPEN_SLOT_BORDER, 0.45),
+                    palette::SUCCESS,
+                )
+            } else {
+                (palette::OPEN_SLOT, palette::OPEN_SLOT_BORDER)
+            };
+            view::draw_slot(Side::Ally, pos, fill, border);
             let label = bonus_label(&formation.slot_percents(i));
             if self.slots[i].is_none() && !label.is_empty() {
                 let c = view::cell_center(Side::Ally, pos);
@@ -97,8 +142,13 @@ impl PlacementScreen {
             }
         }
 
-        // 我方精靈（含陣型加成，預覽才準）
-        let placement = self.placement(run);
+        // 我方精靈（含陣型加成，預覽才準）；從格子拖起來的那隻先不畫在棋盤上
+        let mut shown = self.slots.clone();
+        if let Some(Drag { from: Some(f), .. }) = dragging {
+            shown[*f] = None;
+        }
+        let placement: Vec<Option<&Sprite>> =
+            shown.iter().map(|s| s.map(|i| &run.party[i])).collect();
         let mut units = formation.place(&placement, Side::Ally).unwrap_or_default();
         units.extend(self.enemies.iter().cloned());
         // 由後往前畫；我方的格子有加成時，左下角顯示加成（取代血量數字）
@@ -120,25 +170,15 @@ impl PlacementScreen {
             gfx::rounded_rect_lines(r, 8.0, 3.0, palette::BUTTON_ACTIVE);
         }
 
-        // 點格子：有選中的精靈就放進去，否則拿起格子裡的精靈
-        if ui::clicked()
-            && let Some(pos) = view::cell_at(Side::Ally, ui::mouse())
-            && let Some(slot) = formation.slots.iter().position(|&p| p == pos)
-        {
-            match self.selected.take() {
-                Some(member) => {
-                    for s in &mut self.slots {
-                        if *s == Some(member) {
-                            *s = None;
-                        }
-                    }
-                    self.slots[slot] = Some(member);
-                }
-                None => self.selected = self.slots[slot].take(),
-            }
-        }
-
         self.draw_party(run);
+        // 拖曳中的精靈跟著手指，畫在手指上方一點，才不會被手指擋住
+        if let Some(d) = self.drag.as_ref().filter(|d| d.moved) {
+            let p = ui::mouse() - vec2(0.0, 36.0);
+            let r = Rect::new(p.x - CARD_W / 2.0, p.y - CARD_H / 2.0, CARD_W, CARD_H);
+            gfx::shadow(r, 10.0);
+            gfx::rounded_rect(r, 10.0, gfx::with_alpha(palette::BUTTON_ACTIVE, 0.9));
+            text::centered(&run.party[d.member].name, r.center(), 24.0, palette::TEXT);
+        }
 
         let placed = self.slots.iter().flatten().count();
         let ready = placed >= MIN_UNITS;
@@ -148,9 +188,86 @@ impl PlacementScreen {
             format!("至少擺 {MIN_UNITS} 隻")
         };
         if ui::button(BOTTOM_BUTTON, &label, Style::Primary, ready) {
-            return formation.place(&placement, Side::Ally).ok();
+            let formation = &run.formations[self.formation];
+            return formation.place(&self.placement(run), Side::Ally).ok();
         }
         None
+    }
+
+    /// 畫面座標落在陣型的第幾格
+    fn slot_at(&self, run: &Run, p: Vec2) -> Option<usize> {
+        let pos = view::cell_at(Side::Ally, p)?;
+        run.formations[self.formation]
+            .slots
+            .iter()
+            .position(|&s| s == pos)
+    }
+
+    /// 這一頁的隊伍卡片中，畫面座標落在哪一隻
+    fn card_at(&self, run: &Run, p: Vec2) -> Option<usize> {
+        let first = self.page * CARDS_PER_PAGE;
+        (first..run.party.len().min(first + CARDS_PER_PAGE))
+            .find(|&i| card_rect(i - first).contains(p))
+    }
+
+    /// 按下、拖曳、放開。沒有拖動就放開時當成點一下（點選的操作照舊）
+    fn handle_input(&mut self, run: &Run) {
+        let p = ui::mouse();
+        if ui::clicked() {
+            if let Some(member) = self.card_at(run, p) {
+                self.drag = Some(Drag {
+                    member,
+                    from: None,
+                    start: p,
+                    moved: false,
+                });
+            } else if let Some(slot) = self.slot_at(run, p) {
+                match self.slots[slot] {
+                    // 有選中的精靈時，點格子就放進去
+                    _ if self.selected.is_some() => {
+                        let member = self.selected.take().unwrap();
+                        drop_on(&mut self.slots, member, None, Some(slot));
+                    }
+                    Some(member) => {
+                        self.drag = Some(Drag {
+                            member,
+                            from: Some(slot),
+                            start: p,
+                            moved: false,
+                        })
+                    }
+                    None => {}
+                }
+            }
+        }
+
+        if let Some(d) = &mut self.drag
+            && ui::held()
+            && p.distance(d.start) > DRAG_THRESHOLD
+        {
+            d.moved = true;
+            self.selected = None;
+        }
+
+        if ui::released()
+            && let Some(d) = self.drag.take()
+        {
+            if d.moved {
+                let target = self.slot_at(run, p);
+                drop_on(&mut self.slots, d.member, d.from, target);
+            } else if d.from.is_some() {
+                // 點格子裡的精靈：拿起來，接著點別的格子放下
+                drop_on(&mut self.slots, d.member, d.from, None);
+                self.selected = Some(d.member);
+            } else {
+                // 點隊伍卡片：選取／取消選取
+                self.selected = if self.selected == Some(d.member) {
+                    None
+                } else {
+                    Some(d.member)
+                };
+            }
+        }
     }
 
     /// 上方的陣型分頁
@@ -191,13 +308,8 @@ impl PlacementScreen {
             } else {
                 Style::Normal
             };
-            if ui::button(rect, &run.party[i].name, style, true) {
-                self.selected = if self.selected == Some(i) {
-                    None
-                } else {
-                    Some(i)
-                };
-            }
+            // 點擊與拖曳在 handle_input 處理
+            ui::draw_button(rect, &run.party[i].name, style, true);
             // 已經上場的精靈，右上角一個綠點
             if self.slots.contains(&Some(i)) {
                 draw_circle(rect.x + rect.w - 9.0, rect.y + 9.0, 4.0, palette::SUCCESS);
@@ -222,14 +334,14 @@ impl PlacementScreen {
             }
             None => {
                 text::draw(
-                    "點隊伍中的精靈，再點綠色格子放上去",
+                    "把精靈拖到綠色格子，或點精靈再點格子",
                     MARGIN,
                     info_y,
                     18.0,
                     palette::TEXT_DIM,
                 );
                 text::draw(
-                    "點格子裡的精靈可以拿起來",
+                    "拖格子裡的精靈可以換位置，拖出去就拿下",
                     MARGIN,
                     info_y + 22.0,
                     18.0,
@@ -237,5 +349,55 @@ impl PlacementScreen {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::drop_on;
+
+    #[test]
+    fn drop_from_party_replaces_occupant() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 2, None, Some(0));
+        assert_eq!(slots, vec![Some(2), None, Some(1)]);
+    }
+
+    #[test]
+    fn drop_from_party_moves_member_already_placed() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 1, None, Some(1));
+        assert_eq!(slots, vec![Some(0), Some(1), None]);
+    }
+
+    #[test]
+    fn drop_between_slots_swaps() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 0, Some(0), Some(2));
+        assert_eq!(slots, vec![Some(1), None, Some(0)]);
+    }
+
+    #[test]
+    fn drop_onto_empty_slot_moves() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 0, Some(0), Some(1));
+        assert_eq!(slots, vec![None, Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn drop_outside_board_removes() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 1, Some(2), None);
+        assert_eq!(slots, vec![Some(0), None, None]);
+        // 從隊伍拖到外面：什麼都不變
+        drop_on(&mut slots, 0, None, None);
+        assert_eq!(slots, vec![Some(0), None, None]);
+    }
+
+    #[test]
+    fn drop_back_on_same_slot_keeps_it() {
+        let mut slots = vec![Some(0), None, Some(1)];
+        drop_on(&mut slots, 0, Some(0), Some(0));
+        assert_eq!(slots, vec![Some(0), None, Some(1)]);
     }
 }
