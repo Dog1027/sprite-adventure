@@ -41,6 +41,9 @@ pub fn acts_on(stats: &Stats, turn: u32) -> bool {
 /// 戰場上的一隻精靈
 #[derive(Clone, Debug)]
 pub struct Unit {
+    /// 種類代號，見 `Sprite::species`
+    #[allow(dead_code)] // 精靈的圖與動畫尚未實作
+    pub species: String,
     pub name: String,
     pub side: Side,
     pub pos: Pos,
@@ -57,6 +60,7 @@ impl Unit {
             "位置超出棋盤：{pos:?}"
         );
         Self {
+            species: sprite.species.clone(),
             name: sprite.name.clone(),
             side,
             pos,
@@ -267,6 +271,13 @@ pub(crate) mod tests {
         )
         .with_skill(skill);
         Unit::new(&sprite, side, Pos { row, depth })
+    }
+
+    #[test]
+    fn unit_keeps_species_id() {
+        let sprite = Sprite::new("甲", stats(10, 1, 1)).with_species("ember_fox");
+        let unit = Unit::new(&sprite, Side::Ally, Pos { row: 0, depth: 0 });
+        assert_eq!(unit.species, "ember_fox");
     }
 
     #[test]

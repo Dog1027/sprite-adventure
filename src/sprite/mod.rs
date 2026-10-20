@@ -26,6 +26,10 @@ pub struct Stats {
 /// 玩家隊伍中或敵方的一隻精靈
 #[derive(Clone, Debug)]
 pub struct Sprite {
+    /// 種類代號（`data/species.toml` 的 key，例如 `ember_fox`），用來找對應的圖與動畫。
+    /// 不是從資料檔建立的精靈（例如測試用）為空字串
+    pub species: String,
+    /// 顯示用的名字（例如「焰狐」）
     pub name: String,
     pub stats: Stats,
     /// 每隻精靈一種技能
@@ -38,10 +42,16 @@ impl Sprite {
     pub fn new(name: &str, stats: Stats) -> Self {
         assert!(stats.interval >= 1 && stats.start_turn >= 1 && stats.skill_every >= 1);
         Self {
+            species: String::new(),
             name: name.to_owned(),
             stats,
             skill: Skill::basic(),
         }
+    }
+
+    pub fn with_species(mut self, species: &str) -> Self {
+        self.species = species.to_owned();
+        self
     }
 
     pub fn with_skill(mut self, skill: Skill) -> Self {

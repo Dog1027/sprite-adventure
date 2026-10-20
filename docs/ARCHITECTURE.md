@@ -71,7 +71,7 @@ main ──→ run ──→ battle ──→ sprite
 
 | 介面 | 位置 | 用途 |
 |---|---|---|
-| `Stats`、`Sprite` | `sprite/mod.rs` | 精靈 → 戰鬥、流程 |
+| `Stats`、`Sprite`（含種類代號 `species`） | `sprite/mod.rs` | 精靈 → 戰鬥、流程；`species` 用來找精靈的圖與動畫 |
 | `Skill`、`Range` | `sprite/skill.rs` | 精靈 → 戰鬥（執行技能效果） |
 | `Boost`、`Sprite::enhance`、`enhance_amount` | `sprite/growth.rs` | 流程的休息畫面 |
 | `species::create`、`starter`、`catch_rate` | `sprite/species.rs` | 流程：依代號建立精靈、開局精靈、捕捉率 |

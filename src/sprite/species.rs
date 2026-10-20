@@ -79,7 +79,9 @@ fn parse(text: &str) -> Result<BTreeMap<String, Species>, String> {
             skill_every: e.skill_every,
         };
         let species = Species {
-            sprite: Sprite::new(&e.name, stats).with_skill(e.skill),
+            sprite: Sprite::new(&e.name, stats)
+                .with_skill(e.skill)
+                .with_species(&id),
             rarity: e.rarity,
             starter: e.starter,
             catch_rate: e.catch_rate,
@@ -153,6 +155,14 @@ mod tests {
         assert_eq!(s.name, "焰狐");
         assert_eq!(s.stats.hp, 100);
         assert_eq!(s.skill.range, Range::Single);
+    }
+
+    #[test]
+    fn sprites_keep_species_id() {
+        for (id, _) in all() {
+            assert_eq!(create(id).species, id);
+        }
+        assert_eq!(starter().species, "ember_fox");
     }
 
     #[test]
