@@ -42,8 +42,9 @@ Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/
 
 ## 已知問題
 
-- 原生版要在專案根目錄執行，否則找不到 `assets/fonts/` 的字型，中文會無法顯示（用 `just run` 就不會有這個問題）
+- 原生版要在專案根目錄執行，否則找不到 `assets/` 的字型與精靈圖，中文與角色會無法顯示（用 `just run` 就不會有這個問題）
 
 ## 授權與素材
 
 - 字型：[俐方體11號（Cubic 11）](https://github.com/ACh-K/Cubic-11)，SIL Open Font License 1.1，授權文件見 `assets/fonts/OFL.txt`
+- 精靈圖：`assets/sprites/` 目前是 `tools/gen_placeholder_sprites.py` 產生的原創占位圖，之後換成正式美術

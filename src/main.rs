@@ -1,3 +1,4 @@
+mod art;
 mod battle;
 mod gfx;
 mod palette;
@@ -25,6 +26,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     text::load().await;
+    art::load().await;
 
     // 開發用：SPRITE_SHOTS=資料夾 會把每個畫面存成 PNG 後結束（見 `just shots`）
     #[cfg(not(target_arch = "wasm32"))]

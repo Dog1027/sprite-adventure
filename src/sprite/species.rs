@@ -111,6 +111,11 @@ pub(super) fn all() -> impl Iterator<Item = (&'static str, &'static Species)> {
     table().iter().map(|(id, s)| (id.as_str(), s))
 }
 
+/// 所有精靈種類的代號（依代號排序），例如用來載入每種精靈的圖
+pub fn ids() -> impl Iterator<Item = &'static str> {
+    all().map(|(id, _)| id)
+}
+
 /// 依代號建立精靈
 pub fn create(id: &str) -> Sprite {
     get(id).sprite.clone()

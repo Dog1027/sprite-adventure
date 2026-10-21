@@ -3,10 +3,12 @@
 //!
 //! 斜向排版：我方在左下、敵方在右上，戰場往右上傾斜 `TILT_DEG` 度，雙方的前排朝向中間。
 //! 每一格在地上是平行四邊形；精靈像立牌一樣站在格子上，由後往前畫，
-//! 前面的精靈會稍微蓋住後面的，有立體感（之後換成精靈動畫也照這個順序畫）。
+//! 前面的精靈會稍微蓋住後面的，有立體感。有圖的精靈畫成動畫角色（見 `crate::art`），
+//! 腳下有名字與血條；沒有圖的精靈畫成名字牌。
 //! 「列」（`row`）是左到右的第 1～3 列，沿著戰場方向對齊，所以「同列」就是正對面。
 
 use super::{Battle, DEPTHS, Event, Pos, ROWS, Side, Unit};
+use crate::art::{self, Anim};
 use crate::gfx;
 use crate::palette;
 use crate::screen::W;
@@ -32,6 +34,8 @@ const UNIT_EXTRA_W: f32 = 10.0;
 const UNIT_H: f32 = 48.0;
 /// 立牌下緣比格子中心低多少（看起來站在格子上）
 const UNIT_FOOT: f32 = 10.0;
+/// 動畫角色的腳底比格子中心低多少
+const ART_FOOT: f32 = 4.0;
 
 /// 一回合幾秒（一般、快轉）
 const TURN_SECONDS: f32 = 0.8;
@@ -248,10 +252,27 @@ impl BattleScreen {
             }
         }
 
+        // 這回合出手的精靈（是否為技能）與倒下的精靈，用來決定動作
+        let mut acting: Vec<(usize, bool)> = Vec::new();
+        let mut defeated: Vec<usize> = Vec::new();
+        for e in &self.events {
+            match *e {
+                Event::Attack {
+                    attacker, skill, ..
+                } => acting.push((attacker, skill)),
+                Event::Heal { healer, .. } => acting.push((healer, true)),
+                Event::Defeated { unit } => defeated.push(unit),
+            }
+        }
+
         for i in draw_order(&b.units) {
-            draw_unit(&b.units[i], None);
-            // 被打的精靈閃一下
-            if damage_totals.iter().any(|d| d.0 == i) {
+            let u = &b.units[i];
+            let hit = damage_totals.iter().any(|d| d.0 == i);
+            let act = acting.iter().find(|a| a.0 == i).map(|a| a.1);
+            let (anim, progress) = pose(u, t, act, hit, defeated.contains(&i));
+            draw_unit_posed(u, None, anim, progress);
+            // 沒有動畫圖的精靈，被打時閃一下
+            if hit && !art::has(&u.species) {
                 gfx::rounded_rect(
                     tile_rect(&b.units[i]),
                     8.0,
@@ -382,8 +403,126 @@ pub fn draw_boards() {
     }
 }
 
-/// 畫一隻精靈的立牌。`footer` 會畫在左下角並取代血量數字（擺位畫面用來顯示陣型加成）
+/// 這一回合的動作與進度。`t` 是回合的動畫進度 0～1：
+/// 前半段出手（攻擊／技能），中段被打的播受傷，倒下的接著播倒下，其餘待機
+fn pose(u: &Unit, t: f32, act: Option<bool>, hit: bool, defeated_now: bool) -> (Anim, f32) {
+    const ACT_END: f32 = 0.5;
+    const HIT: (f32, f32) = (0.35, 0.75);
+    if !u.alive() {
+        if !defeated_now {
+            return (Anim::Defeated, 1.0);
+        }
+        return if t < HIT.0 {
+            (Anim::Idle, 0.0)
+        } else if t < ACT_END {
+            (Anim::Hit, (t - HIT.0) / (ACT_END - HIT.0))
+        } else {
+            (Anim::Defeated, (t - ACT_END) / (1.0 - ACT_END))
+        };
+    }
+    if let Some(skill) = act
+        && t < ACT_END
+    {
+        let anim = if skill { Anim::Skill } else { Anim::Attack };
+        return (anim, t / ACT_END);
+    }
+    if hit && (HIT.0..HIT.1).contains(&t) {
+        return (Anim::Hit, (t - HIT.0) / (HIT.1 - HIT.0));
+    }
+    (Anim::Idle, art::idle_progress(idle_phase(u)))
+}
+
+/// 待機動畫的相位：依位置錯開
+fn idle_phase(u: &Unit) -> f32 {
+    let side = if u.side == Side::Enemy { 0.5 } else { 0.0 };
+    (u.pos.row as f32 * 0.37 + u.pos.depth as f32 * 0.21 + side).fract()
+}
+
+/// 畫一隻待機中的精靈（倒下的停在倒下的最後一格）。`footer` 會畫在名牌下方
+/// 並取代血量數字（擺位畫面用來顯示陣型加成）
 pub fn draw_unit(u: &Unit, footer: Option<&str>) {
+    let (anim, progress) = if u.alive() {
+        (Anim::Idle, art::idle_progress(idle_phase(u)))
+    } else {
+        (Anim::Defeated, 1.0)
+    };
+    draw_unit_posed(u, footer, anim, progress);
+}
+
+/// 畫一隻精靈的指定動作；沒有動畫圖時畫名字牌
+fn draw_unit_posed(u: &Unit, footer: Option<&str>, anim: Anim, progress: f32) {
+    let c = cell_center(u.side, u.pos);
+    if !art::has(&u.species) {
+        draw_card(u, footer);
+        return;
+    }
+    let foot = c + vec2(0.0, ART_FOOT);
+    draw_ellipse(
+        foot.x,
+        foot.y - 1.0,
+        20.0,
+        5.0,
+        0.0,
+        Color::new(0.0, 0.0, 0.0, 0.35),
+    );
+    let color = if u.alive() || anim != Anim::Defeated || progress < 1.0 {
+        WHITE
+    } else {
+        gfx::with_alpha(WHITE, 0.5)
+    };
+    art::draw(
+        &u.species,
+        anim,
+        progress,
+        foot,
+        u.side == Side::Enemy,
+        color,
+    );
+    draw_plate(u, foot, footer);
+}
+
+/// 角色腳下的名牌：名字與血條；`footer` 畫在名牌下方
+fn draw_plate(u: &Unit, foot: Vec2, footer: Option<&str>) {
+    let r = Rect::new(foot.x - 30.0, foot.y + 2.0, 60.0, 15.0);
+    let side_color = match u.side {
+        Side::Ally => palette::ALLY,
+        Side::Enemy => palette::ENEMY,
+    };
+    gfx::rounded_rect(r, 4.0, palette::TAG_BG);
+    gfx::rounded_rect_lines(r, 4.0, 1.0, gfx::with_alpha(side_color, 0.8));
+    let name_color = if u.alive() {
+        palette::TEXT
+    } else {
+        palette::TEXT_MUTED
+    };
+    text::draw(&u.name, r.x + 4.0, r.y + 12.5, 12.0, name_color);
+    if u.alive() {
+        let ratio = u.hp as f32 / u.stats.hp as f32;
+        let bar = Rect::new(r.x + 31.0, r.y + 5.5, 25.0, 4.0);
+        gfx::rounded_rect(bar, 2.0, palette::HP_BAR_BG);
+        let fill = if ratio < 0.3 {
+            palette::HP_BAR_LOW
+        } else {
+            palette::HP_BAR
+        };
+        gfx::rounded_rect(
+            Rect::new(bar.x, bar.y, (bar.w * ratio).max(bar.h), bar.h),
+            2.0,
+            fill,
+        );
+    }
+    if let Some(label) = footer {
+        text::centered(
+            label,
+            vec2(foot.x, r.y + r.h + 8.0),
+            12.0,
+            palette::HIGHLIGHT,
+        );
+    }
+}
+
+/// 沒有動畫圖時的名字牌（立牌）
+fn draw_card(u: &Unit, footer: Option<&str>) {
     let r = tile_rect(u);
     // 腳下的影子
     let c = cell_center(u.side, u.pos);
