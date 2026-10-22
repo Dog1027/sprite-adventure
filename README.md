@@ -47,4 +47,4 @@ Roguelike + 收集精靈 + 陣型戰鬥。詳細設計見 [docs/DESIGN.md](docs/
 ## 授權與素材
 
 - 字型：[俐方體11號（Cubic 11）](https://github.com/ACh-K/Cubic-11)，SIL Open Font License 1.1，授權文件見 `assets/fonts/OFL.txt`
-- 精靈圖：`assets/sprites/` 目前是 `tools/gen_placeholder_sprites.py` 產生的原創占位圖，之後換成正式美術
+- 精靈圖與場景背景：`assets/sprites/`、`assets/scenes/` 目前是 `tools/` 的腳本產生的原創占位圖，之後換成正式美術

@@ -8,6 +8,7 @@ use super::placement::PlacementScreen;
 use super::rest_view::RestScreen;
 use super::ui::{self, BOTTOM_BUTTON, HEADER_H, MARGIN, Style};
 use super::{Reward, Run, catch_view, map_view, shop_view};
+use crate::art;
 use crate::battle::Outcome;
 use crate::battle::view::{BOARD_BOTTOM, BattleScreen};
 use crate::gfx;
@@ -34,6 +35,22 @@ enum Scene {
     Cleared,
 }
 
+impl Scene {
+    /// 這個畫面的場景背景
+    fn backdrop(&self) -> art::Scene {
+        match self {
+            Scene::Map => art::Scene::Map,
+            Scene::Placement(_) | Scene::Battle(..) => art::Scene::Battle,
+            Scene::Shop => art::Scene::Shop,
+            Scene::Rest(_) => art::Scene::Rest,
+            Scene::Catch(_) => art::Scene::Catch,
+            Scene::Notice(_) => art::Scene::Event,
+            Scene::GameOver => art::Scene::Defeat,
+            Scene::Cleared => art::Scene::Victory,
+        }
+    }
+}
+
 pub struct Game {
     run: Run,
     scene: Scene,
@@ -54,7 +71,9 @@ impl Game {
 
     /// 每一幀呼叫一次：處理輸入、更新、畫出目前畫面
     pub fn frame(&mut self, dt: f32) {
-        ui::background();
+        if !art::draw_scene(self.scene.backdrop()) {
+            ui::background();
+        }
         let next = match &mut self.scene {
             Scene::Map => map_view::frame(&self.run).map(|node| self.enter(node)),
             Scene::Placement(screen) => screen.frame(&self.run).map(|allies| {

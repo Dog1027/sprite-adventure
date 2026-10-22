@@ -1,10 +1,15 @@
-//! 精靈動畫圖：`assets/sprites/<代號>.png`（代號是 `data/species.toml` 的 key）。
-//! 目前是 `tools/gen_placeholder_sprites.py` 產生的占位圖，正式美術用同樣排法蓋掉即可。
+//! 美術圖：精靈動畫與場景背景。目前都是 `tools/` 的腳本產生的占位圖，
+//! 正式美術用同樣的大小與排法蓋掉同名檔案即可，程式不用改。
 //!
+//! **精靈**：`assets/sprites/<代號>.png`（代號是 `data/species.toml` 的 key）。
 //! 圖的排法：每格 32×32 像素，每一列是一種動作，由左到右播放（見 `Anim`）。
 //! 角色面向右邊，敵方畫的時候左右翻轉。腳底在每格的最下緣。
 //! 沒有圖的精靈 `draw` 會回傳 false，畫面改畫原本的名字牌。
+//!
+//! **場景**：`assets/scenes/<場景>.png`，225×400 像素，放大 2 倍填滿整個虛擬畫面（見 `Scene`）。
+//! 沒有圖的場景 `draw_scene` 會回傳 false，畫面改畫原本的漸層。
 
+use crate::screen::{H, W};
 use crate::sprite::species;
 use macroquad::prelude::*;
 use std::cell::RefCell;
@@ -55,22 +60,106 @@ pub fn idle_progress(phase: f32) -> f32 {
     (get_time() as f32 * IDLE_FPS / Anim::Idle.frames() as f32 + phase).fract()
 }
 
-thread_local! {
-    static SHEETS: RefCell<HashMap<&'static str, Texture2D>> = RefCell::new(HashMap::new());
+/// 場景背景；每個畫面用哪一張由畫面切換決定（`run::game`）
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Scene {
+    /// 戰鬥與擺位：草原中間的空地
+    Battle,
+    /// 冒險地圖
+    Map,
+    /// 捕捉：森林空地
+    Catch,
+    /// 商店：帳篷
+    Shop,
+    /// 休息：夜晚營火
+    Rest,
+    /// 事件：起霧的小徑
+    Event,
+    /// 冒險失敗
+    Defeat,
+    /// 過關
+    Victory,
 }
 
-/// 遊戲開始前載入所有精靈的圖；缺少的圖只記錄警告
-pub async fn load() {
-    for id in species::ids() {
-        let path = format!("assets/sprites/{id}.png");
-        match load_texture(&path).await {
-            Ok(tex) => {
-                tex.set_filter(FilterMode::Nearest);
-                SHEETS.with(|s| s.borrow_mut().insert(id, tex));
-            }
-            Err(e) => warn!("無法載入精靈圖 {path}：{e}"),
+impl Scene {
+    pub const ALL: [Scene; 8] = [
+        Scene::Battle,
+        Scene::Map,
+        Scene::Catch,
+        Scene::Shop,
+        Scene::Rest,
+        Scene::Event,
+        Scene::Defeat,
+        Scene::Victory,
+    ];
+
+    /// 檔名（不含副檔名）
+    fn file(self) -> &'static str {
+        match self {
+            Scene::Battle => "battle",
+            Scene::Map => "map",
+            Scene::Catch => "catch",
+            Scene::Shop => "shop",
+            Scene::Rest => "rest",
+            Scene::Event => "event",
+            Scene::Defeat => "defeat",
+            Scene::Victory => "victory",
         }
     }
+}
+
+thread_local! {
+    static SHEETS: RefCell<HashMap<&'static str, Texture2D>> = RefCell::new(HashMap::new());
+    static SCENES: RefCell<HashMap<Scene, Texture2D>> = RefCell::new(HashMap::new());
+}
+
+async fn load_pixel_texture(path: &str) -> Option<Texture2D> {
+    match load_texture(path).await {
+        Ok(tex) => {
+            tex.set_filter(FilterMode::Nearest);
+            Some(tex)
+        }
+        Err(e) => {
+            warn!("無法載入圖 {path}：{e}");
+            None
+        }
+    }
+}
+
+/// 遊戲開始前載入所有精靈與場景的圖；缺少的圖只記錄警告
+pub async fn load() {
+    for id in species::ids() {
+        if let Some(tex) = load_pixel_texture(&format!("assets/sprites/{id}.png")).await {
+            SHEETS.with(|s| s.borrow_mut().insert(id, tex));
+        }
+    }
+    for scene in Scene::ALL {
+        let path = format!("assets/scenes/{}.png", scene.file());
+        if let Some(tex) = load_pixel_texture(&path).await {
+            SCENES.with(|s| s.borrow_mut().insert(scene, tex));
+        }
+    }
+}
+
+/// 畫滿整個畫面的場景背景。沒有這張圖時回傳 false
+pub fn draw_scene(scene: Scene) -> bool {
+    SCENES.with(|s| {
+        let scenes = s.borrow();
+        let Some(tex) = scenes.get(&scene) else {
+            return false;
+        };
+        draw_texture_ex(
+            tex,
+            0.0,
+            0.0,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(W, H)),
+                ..Default::default()
+            },
+        );
+        true
+    })
 }
 
 /// 這隻精靈有沒有動畫圖
@@ -142,6 +231,18 @@ mod tests {
         ]
         .map(Anim::row);
         assert_eq!(rows, [0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn every_scene_has_a_background() {
+        for scene in Scene::ALL {
+            let path = format!(
+                "{}/assets/scenes/{}.png",
+                env!("CARGO_MANIFEST_DIR"),
+                scene.file()
+            );
+            assert!(std::path::Path::new(&path).exists(), "缺少 {path}");
+        }
     }
 
     #[test]

@@ -11,7 +11,7 @@ src/
 ├── gfx.rs             共用圖形：圓角矩形、漸層、陰影
 ├── rng.rs             共用亂數（同種子可重現）
 ├── text.rs            共用文字繪製（中文字型），所有畫面都用它畫字
-├── art.rs             精靈動畫圖：載入 assets/sprites/、依動作與進度畫出對應的格子
+├── art.rs             美術圖：精靈動畫（assets/sprites/）與場景背景（assets/scenes/）
 ├── palette.rs         配色表：所有畫面的顏色都從這裡取，依用途命名
 ├── sprite/            精靈
 │   ├── mod.rs         Stats（能力值＋節奏數值）、Sprite
@@ -39,10 +39,12 @@ src/
 
 assets/
 ├── fonts/             Cubic_11.ttf（中文點陣字型，執行時載入）與授權 OFL.txt
-└── sprites/           每種精靈一張動畫圖 <代號>.png（執行時載入；目前是占位圖）
+├── sprites/           每種精靈一張動畫圖 <代號>.png（執行時載入；目前是占位圖）
+└── scenes/            每個場景一張背景 <場景>.png（執行時載入；目前是占位圖）
 
 tools/
-└── gen_placeholder_sprites.py  產生 assets/sprites/ 的占位圖（依 data/species.toml）
+├── gen_placeholder_sprites.py  產生 assets/sprites/ 的占位圖（依 data/species.toml）
+└── gen_placeholder_scenes.py   產生 assets/scenes/ 的占位圖
 
 data/
 └── species.toml       精靈種類的能力值、節奏數值、技能、捕捉率（編譯時嵌入程式）
@@ -126,4 +128,23 @@ main ──→ run ──→ battle ──→ sprite
 - 動作長度跟著回合走（快轉時一起變快）；一回合的前半段出手，中段被打的播受傷，倒下的接著播倒下
 - 目前是 `python3 tools/gen_placeholder_sprites.py` 產生的占位圖；正式美術照同樣排法畫好，直接蓋掉同名檔案即可，程式不用改
 - 新增精靈時重新執行腳本就會產生它的占位圖；缺少圖的精靈會畫成原本的名字牌（測試會檢查每種精靈都有圖）
+
+## 場景背景
+
+- 主題：森林草原。每個場景一張 PNG：`assets/scenes/<場景>.png`，225×400 像素，放大 2 倍填滿直式畫面（450×800）
+- 每個畫面用哪一張由 `run::game` 的 `Scene::backdrop` 決定；沒有圖時畫原本的深色漸層
+
+| 檔名 | 用在 | 內容 |
+|---|---|---|
+| `battle` | 戰鬥、擺位 | 草原中間踩平的空地，遠方是樹林 |
+| `map` | 冒險地圖 | 從空中俯瞰的森林與河流 |
+| `catch` | 捕捉 | 森林空地 |
+| `shop` | 商店 | 帳篷與木頭地板 |
+| `rest` | 休息 | 夜晚的營火 |
+| `event` | 事件 | 起霧的森林小徑 |
+| `defeat` | 冒險失敗 | 黃昏 |
+| `victory` | 過關 | 日出 |
+
+- 背景要偏暗、低彩度：介面文字與精靈直接畫在上面。戰鬥場景的空地要涵蓋雙方棋盤（虛擬座標約 y 120～600），下方 y 610 以後是按鈕區，要暗
+- 目前是 `python3 tools/gen_placeholder_scenes.py` 產生的占位圖；正式美術照同樣大小畫好，直接蓋掉同名檔案即可
 
